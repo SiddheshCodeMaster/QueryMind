@@ -1,9 +1,8 @@
-# 🧠 QueryMind
+﻿# 🧠 QueryMind
 ### *Ask in English. Get answers in data.*
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-Agents-1C3C3C?style=flat&logo=chainlink)](https://langchain.com)
-[![Claude API](https://img.shields.io/badge/Claude-Sonnet-D97757?style=flat)](https://anthropic.com)
 [![OracleDB](https://img.shields.io/badge/Oracle-DB-F80000?style=flat&logo=oracle&logoColor=white)](https://oracle.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -300,8 +299,8 @@ MIT License — see [LICENSE](LICENSE) for details.
 - 2 years in enterprise backend (Java, OracleDB)
 - Building at the intersection of data, AI, and product
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/in/yourprofile)
-[![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=flat&logo=github)](https://github.com/yourusername)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=flat&logo=linkedin)](https://www.linkedin.com/in/siddheshshankar)
+[![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=flat&logo=github)](https://www.linkedin.com/in/siddheshshankar)
 
 ---
 
