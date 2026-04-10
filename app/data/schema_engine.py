@@ -1,8 +1,11 @@
 class SchemaEngine:
     def run(self, context):
         schema = context["schema"]
-
+        print("Schema: ", schema)
+        
         if not schema:
+            print("\n -------------- CONTEXT------------ \n", context)
+
             return context
 
         description = "Table: data\n\nColumns:\n"

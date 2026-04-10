@@ -1,0 +1,14 @@
+# Ignore all __pycache__ directories
+**/__pycache__/
+
+# Ignore all compiled Python files
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore all __init__.py files:
+
+**/__init__.py
+
+# Ignore the VirtualEnv files:
+/qmv
