@@ -1,6 +1,7 @@
 from app.core.context import Context
 from app.core.pipeline import QueryMindPipeline
 import pandas as pd
+from app.cli.ui import show_header, show_message
 
 
 def validate_column(input_col, columns):
@@ -12,7 +13,7 @@ def validate_column(input_col, columns):
 
 
 def main():
-    print("🧠 QueryMind CLI\n")
+    show_header()
 
     # Step 1: File input
     file_path = input("📁 Enter file path: ")
@@ -60,14 +61,16 @@ def main():
         if query.lower() == "exit":
             break
 
+        show_message("user: ", query)
+
         context = Context(query)
         result = pipeline.run(context)
 
         if result.get("error"):
-            print("❌ Error:", result["error"])
+            show_message("assistant", "❌ Error:", result["error"])
         else:
-            print("\n💡 Answer:")
-            print(result.get("answer"))
+            show_message("assistant", "\n💡 Answer:")
+            show_message("assistant", result.get("answer"))
 
 
 if __name__ == "__main__":
