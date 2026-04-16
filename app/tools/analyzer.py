@@ -11,7 +11,12 @@ class Analyzer:
             context["error"] = "Invalid intent"
             return context
 
-        df[dimension] = df[dimension].fillna("Unknown")
+        df[dimension] = df[dimension].astype(str).str.strip()
+
+        # Normalize bad values
+        df[dimension] = df[dimension].replace(
+            ["ERROR", "UNKNOWN", "Unknown", ""], "Unknown"
+        )
 
         if query_type == "comparison":
             result = df.groupby(dimension)[metric].sum().sort_values(ascending=False)

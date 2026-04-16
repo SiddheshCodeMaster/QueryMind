@@ -3,6 +3,18 @@ class PlannerAgent:
         query = context["user_query"].lower()
         semantic_map = context.get("semantic_map")
 
+        valid_keywords = [
+            "highest",
+            "lowest",
+            "top",
+            "average",
+            "avg",
+            "trend",
+            "distribution",
+            "total",
+            "sum",
+        ]
+
         if not semantic_map:
             context["error"] = "Semantic map missing"
             return context
@@ -23,7 +35,11 @@ class PlannerAgent:
         }
 
         # Detect query type
-        if "top" in query:
+        if not any(word in query for word in valid_keywords):
+            context["error"] = (
+                "I couldn't understand the question. Try something like 'top 5 items' or 'highest sales'."
+            )
+        elif "top" in query:
             intent["query_type"] = "top_n"
             intent["limit"] = 5
 
@@ -38,6 +54,9 @@ class PlannerAgent:
         elif "highest" in query or "lowest" in query:
             intent["query_type"] = "comparison"
 
+        elif not query or query.strip().isdigit():
+            context["error"] = "Please enter a meaningful question."
+            return context
         else:
             intent["query_type"] = "aggregation"
 

@@ -4,8 +4,8 @@ from app.cli.tui_app import QueryMindApp
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-
 import pandas as pd
+import os
 
 console = Console()
 
@@ -99,6 +99,8 @@ def main():
     # ----------------------------
     app = QueryMindApp(pipeline)
     app.run()
+    os.system("cls" if os.name == "nt" else "clear")
+    print("🧠 QueryMind closed.\n")
 
 
 if __name__ == "__main__":

@@ -34,12 +34,13 @@ class QueryMindApp(App):
             return
 
         if query.lower() in ["exit", "quit"]:
-            import os
+            # import os
 
-            os.system("cls" if os.name == "nt" else "clear")
+            # os.system("cls" if os.name == "nt" else "clear")
+            self.exit()
             print("🧠 QueryMind closed.\n")
 
-            await self.action_quit()
+            # await self.action_quit()
             return
 
         self.chat_history = "🧠 QueryMind Ready\nType 'exit' or press 'q' to quit\n"
