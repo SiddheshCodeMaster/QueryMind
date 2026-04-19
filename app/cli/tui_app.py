@@ -1,32 +1,68 @@
-from textual.app import App
+from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Input, Static
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+
 from app.core.pipeline import QueryMindPipeline
 from app.core.context import Context
-import time
 
 
 class QueryMindApp(App):
+    CSS = """
+    #top {
+        height: 10;
+    }
+
+    #chat {
+        border: round green;
+        padding: 1;
+    }
+
+    #input {
+        dock: bottom;
+    }
+    """
+
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
         ("q", "quit", "Quit"),
+        ("ctrl+c", "quit", "Quit"),
     ]
 
     def __init__(self, pipeline):
         super().__init__()
         self.pipeline = pipeline
-        self.chat_history = "🧠 QueryMind Ready\n"  # ✅ store manually
+        self.chat_history = "🧠 QueryMind Ready\n"
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         yield Header()
 
+        # 🔥 TOP PANEL (split)
+        with Horizontal(id="top"):
+            yield Static(self.get_ascii_banner(), id="banner")
+            yield Static(self.get_system_info(), id="system")
+
+        # 🔥 CHAT AREA
         self.chat = Static(self.chat_history, id="chat")
         yield self.chat
 
-        self.input = Input(placeholder="ask your question...")
+        # 🔥 INPUT
+        self.input = Input(placeholder="Type your message...", id="input")
         yield self.input
 
         yield Footer()
 
+    # ----------------------------
+    # UI CONTENT
+    # ----------------------------
+    def get_ascii_banner(self):
+        return "   🐧 QueryMind\n   AI Data Analyst\n"
+
+    def get_system_info(self):
+        return "Agent: QueryMind\nMode: Local Analysis\nModel: Rule-based (for now)\n"
+
+    # ----------------------------
+    # INPUT HANDLER
+    # ----------------------------
     async def on_input_submitted(self, event):
         query = event.value.strip()
 
@@ -34,16 +70,11 @@ class QueryMindApp(App):
             return
 
         if query.lower() in ["exit", "quit"]:
-            # import os
-
-            # os.system("cls" if os.name == "nt" else "clear")
             self.exit()
-            print("🧠 QueryMind closed.\n")
-
-            # await self.action_quit()
             return
 
-        self.chat_history = "🧠 QueryMind Ready\nType 'exit' or press 'q' to quit\n"
+        # Add user message
+        self.chat_history += f"\n>> {query}"
 
         context = Context(query)
         result = self.pipeline.run(context)

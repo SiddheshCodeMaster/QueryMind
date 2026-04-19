@@ -4,6 +4,7 @@ from app.security.schema_filter import SchemaFilter
 from app.data.connectors.csv_connector import CSVConnector
 from app.data.schema_engine import SchemaEngine
 from app.tools.analyzer import Analyzer
+from app.agents.InterpreterAgent import InterpreterAgent
 
 
 class QueryMindPipeline:
@@ -15,6 +16,7 @@ class QueryMindPipeline:
         self.schema_engine = SchemaEngine()
         self.planner = PlannerAgent()
         self.analyzer = Analyzer()
+        self.interpreter = InterpreterAgent()
 
         # Load data ONCE
         self.base_context = {}
@@ -38,6 +40,7 @@ class QueryMindPipeline:
         steps = [
             ("input_guard", self.input_guard),
             ("planner", self.planner),
+            ("interpreter", self.interpreter),
             ("analyzer", self.analyzer),
         ]
 
