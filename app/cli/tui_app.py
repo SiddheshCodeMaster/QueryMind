@@ -36,16 +36,16 @@ class QueryMindApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
 
-        # 🔥 TOP PANEL (split)
+        # TOP PANEL (split)
         with Horizontal(id="top"):
             yield Static(self.get_ascii_banner(), id="banner")
             yield Static(self.get_system_info(), id="system")
 
-        # 🔥 CHAT AREA
+        # CHAT AREA
         self.chat = Static(self.chat_history, id="chat")
         yield self.chat
 
-        # 🔥 INPUT
+        # INPUT
         self.input = Input(placeholder="Type your message...", id="input")
         yield self.input
 

@@ -55,13 +55,16 @@ def main():
     # ----------------------------
     # FILE INPUT
     # ----------------------------
-    file_path = Prompt.ask("\n📁 Enter file path")
+    while True:
+        file_path = Prompt.ask("\n📁 Enter file path")
 
-    try:
-        df = pd.read_csv(file_path)
-    except Exception as e:
-        console.print(f"[red]❌ Failed to load file: {str(e)}[/red]")
-        return
+        try:
+            df = pd.read_csv(file_path)
+            break
+
+        except Exception as e:
+            console.print(f"[red]❌ Failed to load file: {str(e)}[/red]")
+            console.print("[yellow]Please try again.[/yellow]")
 
     # Normalize columns
     df.columns = [normalize_column(col) for col in df.columns]

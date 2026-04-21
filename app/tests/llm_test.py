@@ -1,6 +1,18 @@
-from ..llm.ollama_client import OllamaClient
+from app.agents.llm_intepreter import LLMInterpreter
 
-client = OllamaClient()
+context = {
+    "user_query": "Which location has highest revenue?",
+    "schema": {
+        "columns": [
+            {"name": "location"},
+            {"name": "payment_method"},
+            {"name": "total_spent"},
+        ]
+    },
+}
 
-response = client.generate("What is 2 + 2?")
-print(response)
+agent = LLMInterpreter()
+
+result = agent.run(context)
+
+print(result["intent"])

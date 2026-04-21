@@ -12,12 +12,18 @@ class InterpreterAgent:
             "query_type": "aggregation",
             "operation": "sum",
             "limit": None,
+            "intent_confidence": None,
         }
 
         # DYNAMIC DIMENSION DETECTION
         for col in columns:
             if col.replace("_", " ") in query:
                 intent["dimension"] = col
+
+        # TESTING TO BLOCK INVALID INPUT:
+        if not query or query.isdigit():
+            context["error"] = "Please enter a meaningful question."
+            return context
 
         # KEYWORD MAPPING
         if "location" in query:
@@ -39,6 +45,25 @@ class InterpreterAgent:
 
         elif "highest" in query or "most" in query:
             intent["query_type"] = "comparison"
+
+        # FOR LLM Activation:
+        valid_keywords = [
+            "highest",
+            "lowest",
+            "top",
+            "average",
+            "avg",
+            "trend",
+            "distribution",
+            "total",
+            "sum",
+            "most",
+        ]
+
+        if not any(word in query for word in valid_keywords):
+            context["intent_confidence"] = 0.2
+        else:
+            context["intent_confidence"] = 0.9
 
         context["intent"] = intent
         return context

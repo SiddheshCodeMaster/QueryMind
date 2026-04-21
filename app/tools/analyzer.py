@@ -45,4 +45,12 @@ class Analyzer:
 
             context["answer"] = result.to_string()
 
+        context["analysis"] = result.to_string()
+
+        if hasattr(result, "squeeze"):
+            result = result.squeeze()
+
+        if not context.get("analysis"):
+            context["answer"] = result.to_string()
+
         return context
