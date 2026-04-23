@@ -36,49 +36,49 @@ class QueryMindPipeline:
 
     def run(self, context):
 
-        # Inject base context:
+        # Inject base context
         context["dataframe"] = self.base_context.get("dataframe")
         context["schema"] = self.base_context.get("schema")
         context["schema_description"] = self.base_context.get("schema_description")
 
         context["semantic_map"] = self.semantic_map
 
-        # ----------------------------
-        # STEP 1: Input Guard:
-        # ----------------------------
+        # STEP 1: Input Guard
         context = self.input_guard.run(context)
         if context.get("error"):
             return context
 
-        # ----------------------------
-        # STEP 2: Rule-Based Interpreter:
-        # ----------------------------
+        # STEP 2: Rule Interpreter
         context = self.interpreter.run(context)
+
+        # If invalid input
+        if context.get("error"):
+            return context
 
         confidence = context.get("intent_confidence", 0)
 
-        # ----------------------------
-        # STEP 3: LLM Fallback:
-        # ----------------------------
+        # STEP 3: LLM fallback
         if confidence < 0.8:
             context = self.llm_interpreter.run(context)
 
-            # If LLM fails → fallback to rule-based safely:
             if context.get("error"):
-                # Remove error, continue with rule-based intent:
                 context.pop("error", None)
 
-        # ----------------------------
-        # STEP 4: Analyzer:
-        # ----------------------------
+        # STEP 4: Analyzer
         context = self.analyzer.run(context)
 
         if context.get("error"):
             return context
 
+        # STEP 5: Insight Generator
         context = self.insight_generator.run(context)
 
-        if not context.get("answer"):  # SAFETY
-            context["answer"] = "Could not generate insights"
+        # FINAL SAFETY
+        if not context.get("answer"):
+            result = context.get("analysis")
+            if result is not None:
+                context["answer"] = result.to_string()
+            else:
+                context["answer"] = "Could not generate insights"
 
         return context

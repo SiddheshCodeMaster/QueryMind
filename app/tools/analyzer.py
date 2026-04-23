@@ -3,9 +3,9 @@ class Analyzer:
         df = context["dataframe"]
         intent = context["intent"]
 
-        metric = intent["metric"]
-        dimension = intent["dimension"]
-        query_type = intent["query_type"]
+        metric = intent.get("metric")
+        dimension = intent.get("dimension")
+        query_type = intent.get("query_type")
 
         if not metric or not dimension:
             context["error"] = "Invalid intent"
@@ -13,44 +13,40 @@ class Analyzer:
 
         df[dimension] = df[dimension].astype(str).str.strip()
 
-        # Normalize bad values
         df[dimension] = df[dimension].replace(
             ["ERROR", "UNKNOWN", "Unknown", ""], "Unknown"
         )
 
-        if query_type == "comparison":
-            result = df.groupby(dimension)[metric].sum().sort_values(ascending=False)
-            top = result.iloc[0]
-            label = result.index[0]
+        try:
+            if query_type == "comparison":
+                result = (
+                    df.groupby(dimension)[metric].sum().sort_values(ascending=False)
+                )
 
-            context["answer"] = (
-                f"{label} has the highest {metric} with value {top:,.2f}"
-            )
+            elif query_type == "top_n":
+                n = intent.get("limit", 5)
+                result = (
+                    df.groupby(dimension)[metric]
+                    .sum()
+                    .sort_values(ascending=False)
+                    .head(n)
+                )
 
-        elif query_type == "top_n":
-            n = intent.get("limit", 5)
-            result = (
-                df.groupby(dimension)[metric].sum().sort_values(ascending=False).head(n)
-            )
+            elif query_type == "aggregation":
+                result = df.groupby(dimension)[metric].mean()
 
-            context["answer"] = result.to_string()
+            elif query_type == "trend":
+                result = df.groupby(dimension)[metric].sum().sort_index()
 
-        elif query_type == "aggregation":
-            result = df.groupby(dimension)[metric].mean()
+            else:
+                context["error"] = "Unsupported query type"
+                return context
 
-            context["answer"] = result.to_string()
+            # ALWAYS store RAW result (Series)
+            context["analysis"] = result
 
-        elif query_type == "trend":
-            result = df.groupby(dimension)[metric].sum().sort_index()
+            return context
 
-            context["answer"] = result.to_string()
-
-        context["analysis"] = result.to_string()
-
-        if hasattr(result, "squeeze"):
-            result = result.squeeze()
-
-        if not context.get("analysis"):
-            context["answer"] = result.to_string()
-
-        return context
+        except Exception as e:
+            context["error"] = str(e)
+            return context

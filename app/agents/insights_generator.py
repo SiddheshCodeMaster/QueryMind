@@ -13,7 +13,7 @@ class InsightGenerator:
             metric = intent.get("metric")
             dimension = intent.get("dimension")
 
-            # Ensure it's a Series
+            # Ensure Series
             if isinstance(result, pd.DataFrame):
                 result = result.squeeze()
 
@@ -41,3 +41,4 @@ class InsightGenerator:
 
         except Exception:
             return context
+    
