@@ -1,14 +1,23 @@
 class Analyzer:
     def run(self, context):
-        df = context["dataframe"]
-        intent = context["intent"]
+        df = context.get("dataframe")
+        intent = context.get("intent")
+
+        if not intent:
+            context["error"] = "Missing intent"
+            return context
 
         metric = intent.get("metric")
         dimension = intent.get("dimension")
         query_type = intent.get("query_type")
 
         if not metric or not dimension:
-            context["error"] = "Invalid intent"
+            context["error"] = "Invalid intent: metric or dimension missing"
+            return context
+
+        # Ensure columns exist in dataframe
+        if metric not in df.columns or dimension not in df.columns:
+            context["error"] = "Invalid columns detected in intent"
             return context
 
         df[dimension] = df[dimension].astype(str).str.strip()

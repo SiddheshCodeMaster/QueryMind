@@ -9,6 +9,8 @@ from app.security.schema_filter import SchemaFilter
 from app.data.schema_engine import SchemaEngine
 from app.agents.insights_generator import InsightGenerator
 
+from app.agents.narrator import Narrator
+
 
 class QueryMindPipeline:
     def __init__(self, file_path, semantic_map):
@@ -25,6 +27,7 @@ class QueryMindPipeline:
         self.interpreter = InterpreterAgent()
         self.llm_interpreter = LLMInterpreter()
         self.insight_generator = InsightGenerator()
+        self.narrator = Narrator()
 
         self.analyzer = Analyzer()
 
@@ -81,4 +84,5 @@ class QueryMindPipeline:
             else:
                 context["answer"] = "Could not generate insights"
 
+        context = self.narrator.run(context)
         return context
