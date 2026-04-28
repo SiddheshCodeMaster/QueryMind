@@ -7,11 +7,11 @@ class Analyzer:
 
     Supported query types
     ---------------------
-    comparison  – group by dimension, sum metric, sort descending
-    top_n       – like comparison but limited to N rows
+    comparison  - group by dimension, sum metric, sort descending
+    top_n       - like comparison but limited to N rows
                   (ascending=True in intent → bottom N)
-    aggregation – group by dimension, apply mean or sum
-    trend       – group by time dimension, sum metric, sort by index
+    aggregation - group by dimension, apply mean or sum
+    trend       - group by time dimension, sum metric, sort by index
     """
 
     def run(self, context):
