@@ -53,12 +53,27 @@ class CSVConnector:
 
             print(f"📄 CSV encoding={encoding}  delimiter={repr(delimiter)}")
 
-            df = pd.read_csv(
-                self.file_path,
-                encoding=encoding,
-                sep=delimiter,
-                on_bad_lines="warn",  # skip malformed rows, don't crash
-            )
+            try:
+                df = pd.read_csv(
+                    self.file_path,
+                    encoding=encoding,
+                    sep=delimiter,
+                    on_bad_lines="warn",  # skip malformed rows, don't crash
+                )
+            except pd.errors.EmptyDataError:
+                context["error"] = (
+                    f"'{self.file_path}' is completely empty. "
+                    f"Please provide a file with headers and at least one row of data."
+                )
+                return context
+
+            # Guard: headers-only (parsed fine but zero rows)
+            if df.empty:
+                context["error"] = (
+                    f"'{self.file_path}' contains only headers and no data rows. "
+                    f"Please provide a file with at least one row of data."
+                )
+                return context
 
             # Normalize column names
             df.columns = [col.lower().strip().replace(" ", "_") for col in df.columns]

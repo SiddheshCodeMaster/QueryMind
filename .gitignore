@@ -12,3 +12,6 @@
 
 # Ignore the VirtualEnv files:
 /qmv
+
+# Ignore Bug Reports file:
+app/tests/QueryMind-Bugs.xlsx

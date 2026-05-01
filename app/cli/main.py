@@ -119,6 +119,14 @@ def load_file(file_path: str) -> tuple:
             df["_sheet"] = s
             frames.append(df)
         preview_df = pd.concat(frames, ignore_index=True, sort=False)
+        real_cols = [c for c in preview_df.columns if c != "_sheet"]
+        if len(real_cols) < 2:
+            col_name = real_cols[0] if real_cols else "none"
+            raise RuntimeError(
+                f"The selected sheet(s) only have 1 column ('{col_name}'). "
+                f"QueryMind needs at least one metric column and one dimension column. "
+                f"Please select sheets with 2 or more columns."
+            )
         return connector, preview_df
 
     elif ext in CSV_EXTS:
@@ -130,10 +138,31 @@ def load_file(file_path: str) -> tuple:
         connector = CSVConnector(file_path)
         encoding = _detect_encoding(file_path)
         delimiter = _detect_delimiter(file_path, encoding)
-        preview_df = pd.read_csv(
-            file_path, encoding=encoding, sep=delimiter, nrows=100, on_bad_lines="warn"
-        )
+        try:
+            preview_df = pd.read_csv(
+                file_path,
+                encoding=encoding,
+                sep=delimiter,
+                nrows=100,
+                on_bad_lines="warn",
+            )
+        except pd.errors.EmptyDataError:
+            raise RuntimeError(
+                f"'{file_path}' is completely empty. "
+                f"Please provide a file with headers and at least one row of data."
+            )
+        if preview_df.empty:
+            raise RuntimeError(
+                f"'{file_path}' contains only headers and no data rows. "
+                f"Please provide a file with at least one row of data."
+            )
         preview_df.columns = [normalize_column(c) for c in preview_df.columns]
+        if len(preview_df.columns) < 2:
+            raise RuntimeError(
+                f"'{file_path}' only has 1 column ('{preview_df.columns[0]}'). "
+                f"QueryMind needs at least one metric column and one dimension column. "
+                f"Please provide a file with 2 or more columns."
+            )
         return connector, preview_df
 
     else:
