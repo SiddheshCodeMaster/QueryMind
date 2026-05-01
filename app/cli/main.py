@@ -1,19 +1,25 @@
-from app.core.pipeline import QueryMindPipeline
-from app.cli.tui_app import QueryMindApp
-
+import os
+import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
-import pandas as pd
-import os
+
+from app.core.pipeline import QueryMindPipeline
+from app.cli.tui_app import QueryMindApp
+from app.data.connectors.csv_connector import CSVConnector
+from app.data.connectors.excel_connector import ExcelConnector
+from app.executor.sheet_selector import prompt_sheet_selection
 
 console = Console()
 
+EXCEL_EXTS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
+CSV_EXTS = {".csv", ".tsv"}
 
-# ----------------------------
+
+# ─────────────────────────────────────────────
 # HELPERS
-# ----------------------------
+# ─────────────────────────────────────────────
 
 
 def normalize_column(col: str) -> str:
@@ -35,30 +41,27 @@ def prompt_column(message: str, columns: list, optional: bool = False) -> str | 
             if optional
             else Prompt.ask(f"[cyan]{message}[/cyan]")
         )
-
         if optional and value.strip() == "":
             return None
-
         validated = validate_column(value, columns)
         if validated:
             return validated
 
 
-def detect_column_types(df: pd.DataFrame) -> tuple[list, list, list]:
+def detect_column_types(df: pd.DataFrame) -> tuple:
     """Returns (numeric_cols, categorical_cols, datetime_cols)."""
     numeric = df.select_dtypes(include="number").columns.tolist()
     obj_cols = df.select_dtypes(exclude="number").columns.tolist()
-
-    datetime_cols = []
-    categorical = []
+    datetime_cols, categorical = [], []
     for col in obj_cols:
+        if col == "_sheet":
+            continue
         sample = df[col].dropna().head(20)
         try:
             pd.to_datetime(sample, infer_datetime_format=True)
             datetime_cols.append(col)
         except Exception:
             categorical.append(col)
-
     return numeric, categorical, datetime_cols
 
 
@@ -69,13 +72,14 @@ def show_columns(df: pd.DataFrame, numeric: list, categorical: list, datetime: l
     table.add_column("Sample values", style="dim")
 
     for col in df.columns:
+        if col == "_sheet":
+            continue
         if col in numeric:
             col_type = "[green]numeric[/green]"
         elif col in datetime:
             col_type = "[magenta]datetime[/magenta]"
         else:
             col_type = "[yellow]categorical[/yellow]"
-
         sample = df[col].dropna().head(3).tolist()
         sample_str = ", ".join(str(v) for v in sample)
         table.add_row(col, col_type, sample_str)
@@ -83,9 +87,65 @@ def show_columns(df: pd.DataFrame, numeric: list, categorical: list, datetime: l
     console.print(table)
 
 
-# ----------------------------
+# ─────────────────────────────────────────────
+# FILE LOADING
+# ─────────────────────────────────────────────
+
+
+def load_file(file_path: str) -> tuple:
+    """
+    Returns (connector, preview_df) where preview_df is used only for
+    column-type detection and semantic-map prompting.
+
+    For Excel: runs sheet selection first, then builds ExcelConnector.
+    For CSV: builds CSVConnector directly.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext in EXCEL_EXTS:
+        # Sheet selection
+        selected_sheets = prompt_sheet_selection(file_path)
+        if not selected_sheets:
+            raise RuntimeError("No sheets selected.")
+
+        connector = ExcelConnector(file_path, selected_sheets)
+
+        # Build a preview df just for column detection
+        frames = []
+        xl = pd.ExcelFile(file_path)
+        for s in selected_sheets:
+            df = xl.parse(s, nrows=100)
+            df.columns = [normalize_column(c) for c in df.columns]
+            df["_sheet"] = s
+            frames.append(df)
+        preview_df = pd.concat(frames, ignore_index=True, sort=False)
+        return connector, preview_df
+
+    elif ext in CSV_EXTS:
+        from app.data.connectors.csv_connector import (
+            _detect_encoding,
+            _detect_delimiter,
+        )
+
+        connector = CSVConnector(file_path)
+        encoding = _detect_encoding(file_path)
+        delimiter = _detect_delimiter(file_path, encoding)
+        preview_df = pd.read_csv(
+            file_path, encoding=encoding, sep=delimiter, nrows=100, on_bad_lines="warn"
+        )
+        preview_df.columns = [normalize_column(c) for c in preview_df.columns]
+        return connector, preview_df
+
+    else:
+        raise RuntimeError(
+            f"Unsupported file type: '{ext}'. "
+            f"Supported: {sorted(EXCEL_EXTS | CSV_EXTS)}"
+        )
+
+
+# ─────────────────────────────────────────────
 # MAIN
-# ----------------------------
+# ─────────────────────────────────────────────
 
 
 def main():
@@ -96,38 +156,37 @@ def main():
         )
     )
 
-    # ----------------------------
-    # FILE INPUT
-    # ----------------------------
+    # ── File input ────────────────────────────────────────────────────
     while True:
-        file_path = Prompt.ask("\n[cyan]📁 Enter CSV file path[/cyan]")
+        file_path = Prompt.ask(
+            "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls)[/dim]"
+        )
         try:
-            df = pd.read_csv(file_path)
+            connector, preview_df = load_file(file_path)
+            rows = len(preview_df)
             console.print(
-                f"[green]✅ Loaded {len(df):,} rows × {len(df.columns)} columns[/green]"
+                f"[green]✅ Loaded {rows:,} preview rows × "
+                f"{len([c for c in preview_df.columns if c != '_sheet'])} columns[/green]"
             )
             break
+        except RuntimeError as e:
+            console.print(f"[red]❌ {e}[/red]")
         except Exception as e:
             console.print(f"[red]❌ Failed to load: {e}[/red]")
             console.print("[yellow]Please try again.[/yellow]")
 
-    # Normalise column names
-    df.columns = [normalize_column(col) for col in df.columns]
-    columns = df.columns.tolist()
+    columns_all = [c for c in preview_df.columns if c != "_sheet"]
+    numeric_cols, categorical_cols, datetime_cols = detect_column_types(preview_df)
 
-    numeric_cols, categorical_cols, datetime_cols = detect_column_types(df)
-
-    # Show detected columns
+    # ── Show column overview ──────────────────────────────────────────
     console.print()
-    show_columns(df, numeric_cols, categorical_cols, datetime_cols)
+    show_columns(preview_df, numeric_cols, categorical_cols, datetime_cols)
 
-    # ----------------------------
-    # SEMANTIC MAPPING
-    # ----------------------------
+    # ── Semantic mapping ──────────────────────────────────────────────
     console.print("\n[bold cyan]🧠 Help me understand your data[/bold cyan]")
     console.print("[dim]Use column names exactly as shown above.[/dim]\n")
 
-    # Suggest defaults
+    # Suggest sensible defaults
     default_metric = numeric_cols[0] if numeric_cols else ""
     default_dimension = categorical_cols[0] if categorical_cols else ""
     default_time = datetime_cols[0] if datetime_cols else ""
@@ -137,39 +196,41 @@ def main():
     if default_dimension:
         console.print(f"[dim]  Suggested dimension → {default_dimension}[/dim]")
     if default_time:
-        console.print(f"[dim]  Suggested time      → {default_time}[/dim]")
+        console.print(f"[dim]  Suggested time col  → {default_time}[/dim]")
     console.print()
 
     metric = prompt_column(
-        "👉 Which column is the main VALUE to measure? (metric)", columns
+        "👉 Which column is the main VALUE to measure? (metric)", columns_all
     )
     dimension = prompt_column(
-        "👉 Which column to GROUP BY by default? (dimension)", columns
+        "👉 Which column to GROUP BY by default? (dimension)", columns_all
     )
     time_col = prompt_column(
         "👉 Time column for trend queries? (optional — press Enter to skip)",
-        columns,
+        columns_all,
         optional=True,
     )
 
-    semantic_map = {
-        "metric": metric,
-        "dimension": dimension,
-        "time": time_col,
-    }
+    semantic_map = {"metric": metric, "dimension": dimension, "time": time_col}
 
     console.print(
-        f"\n[green]✅ Semantic map set:[/green] metric=[bold]{metric}[/bold]  "
+        f"\n[green]✅ Semantic map:[/green] "
+        f"metric=[bold]{metric}[/bold]  "
         f"dimension=[bold]{dimension}[/bold]  "
         f"time=[bold]{time_col or 'none'}[/bold]"
     )
 
-    # ----------------------------
-    # PIPELINE + TUI
-    # ----------------------------
-    console.print("\n[green]✅ Launching QueryMind UI...[/green]\n")
+    # ── Build pipeline ────────────────────────────────────────────────
+    console.print("\n[dim]Loading data and building pipeline…[/dim]")
+    try:
+        pipeline = QueryMindPipeline(connector, semantic_map)
+    except RuntimeError as e:
+        console.print(f"[red]❌ Pipeline failed to start: {e}[/red]")
+        return
 
-    pipeline = QueryMindPipeline(file_path, semantic_map)
+    console.print("[green]✅ Launching QueryMind UI…[/green]\n")
+
+    # ── Launch TUI ────────────────────────────────────────────────────
     app = QueryMindApp(pipeline)
     app.run()
 

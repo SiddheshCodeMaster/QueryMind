@@ -3,6 +3,7 @@ from app.agents.llm_intepreter import LLMInterpreter
 from app.tools.analyzer import Analyzer
 from app.security.input_guard import InputGuard
 from app.data.connectors.csv_connector import CSVConnector
+from app.data.connectors.excel_connector import ExcelConnector
 from app.security.schema_filter import SchemaFilter
 from app.data.schema_engine import SchemaEngine
 from app.agents.insights_generator import InsightGenerator
@@ -12,25 +13,32 @@ class QueryMindPipeline:
     """
     Orchestrates the full query → insight pipeline.
 
+    Accepts either a CSVConnector or ExcelConnector — the rest of the
+    pipeline is connector-agnostic.
+
     Step sequence
     -------------
-    1. InputGuard        – blocks junk/unsafe input
-    2. InterpreterAgent  – fast rule-based intent extraction (confidence 0–1)
-    3. LLMInterpreter    – runs only when confidence < 0.8; its result
-                           replaces the rule intent, but falls back to the
-                           rule intent if the LLM produces invalid output
-    4. Analyzer          – pandas operations against the dataframe
-    5. InsightGenerator  – formats raw Series into human-readable answer
+    1. InputGuard        – blocks junk / sensitive input
+    2. InterpreterAgent  – fast rule-based intent extraction
+    3. LLMInterpreter    – runs only when confidence < 0.8;
+                           falls back to rule intent on failure
+    4. Analyzer          – pandas operations; sheet-aware for Excel
+    5. InsightGenerator  – formats raw Series → readable answer
     """
 
-    def __init__(self, file_path: str, semantic_map: dict):
+    def __init__(self, connector, semantic_map: dict):
+        """
+        connector    – a CSVConnector or ExcelConnector instance
+        semantic_map – {"metric": col, "dimension": col, "time": col|None}
+        """
         self.semantic_map = semantic_map
 
         # Infrastructure
-        self.connector = CSVConnector(file_path)
         self.schema_filter = SchemaFilter()
         self.schema_engine = SchemaEngine()
-        self.input_guard = InputGuard()
+
+        extra_words = [v for v in semantic_map.values() if v]
+        self.input_guard = InputGuard(extra_domain_words=extra_words)
 
         # Agents
         self.interpreter = InterpreterAgent()
@@ -38,22 +46,26 @@ class QueryMindPipeline:
         self.insight_generator = InsightGenerator()
         self.analyzer = Analyzer()
 
-        # Load and cache base context (df + schema) once at startup
+        # Load + cache base context once at startup
         self._base_context = {}
-        self._base_context = self.connector.run(self._base_context)
+        self._base_context = connector.run(self._base_context)
+        if self._base_context.get("error"):
+            raise RuntimeError(f"Failed to load data: {self._base_context['error']}")
         self._base_context = self.schema_filter.run(self._base_context)
         self._base_context = self.schema_engine.run(self._base_context)
 
     # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def run(self, context: dict) -> dict:
-        # --- Inject shared state ---
+        # Inject shared state into every query context
         context["dataframe"] = self._base_context.get("dataframe")
         context["schema"] = self._base_context.get("schema")
         context["schema_description"] = self._base_context.get("schema_description")
         context["semantic_map"] = self.semantic_map
+
+        # Carry Excel-specific metadata so Analyzer / InsightGenerator can use it
+        context["sheet_dataframes"] = self._base_context.get("sheet_dataframes", {})
+        context["excel_sheets"] = self._base_context.get("excel_sheets", [])
+        context["excel_mode"] = self._base_context.get("excel_mode", None)
 
         # STEP 1 – Input guard
         context = self.input_guard.run(context)
@@ -65,21 +77,24 @@ class QueryMindPipeline:
         if context.get("error"):
             return context
 
-        rule_intent = context.get("intent")  # save for fallback
         confidence = context.get("intent_confidence", 0)
 
-        # STEP 3 – LLM fallback (only when rule confidence is low)
+        # STEP 3 – LLM fallback
         if confidence < 0.8:
-            llm_context = self.llm_interpreter.run(dict(context))  # shallow copy
-
+            llm_context = self.llm_interpreter.run(dict(context))
             if llm_context.get("error"):
-                # LLM failed → keep the rule-based intent and carry on
-                context["llm_used"] = False
-                context["llm_error"] = llm_context["error"]
-            else:
-                # LLM succeeded → use its intent
-                context["intent"] = llm_context["intent"]
-                context["llm_used"] = True
+                # LLM failed → reject; don't silently fall back to defaults
+                context["error"] = (
+                    "❓ I couldn't understand that query.\n\n"
+                    "Try something like:\n"
+                    "  • 'top 5 items by sales'\n"
+                    "  • 'highest revenue by location'\n"
+                    "  • 'average spend by payment method'\n"
+                    "  • 'total sales trend over time'"
+                )
+                return context
+            context["intent"] = llm_context["intent"]
+            context["llm_used"] = True
 
         # STEP 4 – Analyze
         context = self.analyzer.run(context)
@@ -89,7 +104,6 @@ class QueryMindPipeline:
         # STEP 5 – Generate insight
         context = self.insight_generator.run(context)
 
-        # Final safety net: if insight generator produced nothing, use raw
         if not context.get("answer"):
             raw = context.get("analysis")
             context["answer"] = (
