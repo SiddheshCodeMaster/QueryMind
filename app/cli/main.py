@@ -1,4 +1,5 @@
 import os
+import sys
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
@@ -15,6 +16,42 @@ console = Console()
 
 EXCEL_EXTS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
 CSV_EXTS = {".csv", ".tsv"}
+
+# Words that mean "I want to quit" at any prompt
+EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q"}
+
+
+# ─────────────────────────────────────────────
+# CLEAN EXIT SIGNAL
+# ─────────────────────────────────────────────
+
+
+class UserExitError(Exception):
+    """Raised when the user types an exit command at any prompt."""
+
+    pass
+
+
+def ask(message: str, default: str = None) -> str:
+    """
+    Wrapper around Prompt.ask that:
+    - Checks for exit words before returning
+    - Raises UserExitError so the caller doesn't need any special logic
+    - Handles KeyboardInterrupt (Ctrl+C) as a clean exit too
+    """
+    try:
+        value = (
+            Prompt.ask(message, default=default)
+            if default is not None
+            else Prompt.ask(message)
+        )
+    except (KeyboardInterrupt, EOFError):
+        raise UserExitError()
+
+    if value.strip().lower() in EXIT_WORDS:
+        raise UserExitError()
+
+    return value
 
 
 # ─────────────────────────────────────────────
@@ -35,11 +72,12 @@ def validate_column(input_col: str, columns: list) -> str | None:
 
 
 def prompt_column(message: str, columns: list, optional: bool = False) -> str | None:
+    """Prompt for a column name, with exit-word detection on every attempt."""
     while True:
         value = (
-            Prompt.ask(f"[cyan]{message}[/cyan]", default="")
+            ask(f"[cyan]{message}[/cyan]", default="")
             if optional
-            else Prompt.ask(f"[cyan]{message}[/cyan]")
+            else ask(f"[cyan]{message}[/cyan]")
         )
         if optional and value.strip() == "":
             return None
@@ -94,23 +132,20 @@ def show_columns(df: pd.DataFrame, numeric: list, categorical: list, datetime: l
 
 def load_file(file_path: str) -> tuple:
     """
-    Returns (connector, preview_df) where preview_df is used only for
-    column-type detection and semantic-map prompting.
-
-    For Excel: runs sheet selection first, then builds ExcelConnector.
-    For CSV: builds CSVConnector directly.
+    Returns (connector, preview_df).
+    Raises RuntimeError for bad files, UserExitError if user quits mid-flow.
     """
     ext = os.path.splitext(file_path)[1].lower()
 
     if ext in EXCEL_EXTS:
-        # Sheet selection
-        selected_sheets = prompt_sheet_selection(file_path)
+        selected_sheets = prompt_sheet_selection(
+            file_path
+        )  # exit-aware (see sheet_selector.py)
         if not selected_sheets:
             raise RuntimeError("No sheets selected.")
 
         connector = ExcelConnector(file_path, selected_sheets)
 
-        # Build a preview df just for column detection
         frames = []
         xl = pd.ExcelFile(file_path)
         for s in selected_sheets:
@@ -119,6 +154,7 @@ def load_file(file_path: str) -> tuple:
             df["_sheet"] = s
             frames.append(df)
         preview_df = pd.concat(frames, ignore_index=True, sort=False)
+
         real_cols = [c for c in preview_df.columns if c != "_sheet"]
         if len(real_cols) < 2:
             col_name = real_cols[0] if real_cols else "none"
@@ -184,87 +220,105 @@ def main():
             border_style="blue",
         )
     )
-
-    # ── File input ────────────────────────────────────────────────────
-    while True:
-        file_path = Prompt.ask(
-            "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls)[/dim]"
-        )
-        try:
-            connector, preview_df = load_file(file_path)
-            rows = len(preview_df)
-            console.print(
-                f"[green]✅ Loaded {rows:,} preview rows × "
-                f"{len([c for c in preview_df.columns if c != '_sheet'])} columns[/green]"
-            )
-            break
-        except RuntimeError as e:
-            console.print(f"[red]❌ {e}[/red]")
-        except Exception as e:
-            console.print(f"[red]❌ Failed to load: {e}[/red]")
-            console.print("[yellow]Please try again.[/yellow]")
-
-    columns_all = [c for c in preview_df.columns if c != "_sheet"]
-    numeric_cols, categorical_cols, datetime_cols = detect_column_types(preview_df)
-
-    # ── Show column overview ──────────────────────────────────────────
-    console.print()
-    show_columns(preview_df, numeric_cols, categorical_cols, datetime_cols)
-
-    # ── Semantic mapping ──────────────────────────────────────────────
-    console.print("\n[bold cyan]🧠 Help me understand your data[/bold cyan]")
-    console.print("[dim]Use column names exactly as shown above.[/dim]\n")
-
-    # Suggest sensible defaults
-    default_metric = numeric_cols[0] if numeric_cols else ""
-    default_dimension = categorical_cols[0] if categorical_cols else ""
-    default_time = datetime_cols[0] if datetime_cols else ""
-
-    if default_metric:
-        console.print(f"[dim]  Suggested metric    → {default_metric}[/dim]")
-    if default_dimension:
-        console.print(f"[dim]  Suggested dimension → {default_dimension}[/dim]")
-    if default_time:
-        console.print(f"[dim]  Suggested time col  → {default_time}[/dim]")
-    console.print()
-
-    metric = prompt_column(
-        "👉 Which column is the main VALUE to measure? (metric)", columns_all
-    )
-    dimension = prompt_column(
-        "👉 Which column to GROUP BY by default? (dimension)", columns_all
-    )
-    time_col = prompt_column(
-        "👉 Time column for trend queries? (optional — press Enter to skip)",
-        columns_all,
-        optional=True,
-    )
-
-    semantic_map = {"metric": metric, "dimension": dimension, "time": time_col}
-
     console.print(
-        f"\n[green]✅ Semantic map:[/green] "
-        f"metric=[bold]{metric}[/bold]  "
-        f"dimension=[bold]{dimension}[/bold]  "
-        f"time=[bold]{time_col or 'none'}[/bold]"
+        "[dim]  Type [bold]exit[/bold] or [bold]quit[/bold] at any prompt to leave.[/dim]\n"
     )
 
-    # ── Build pipeline ────────────────────────────────────────────────
-    console.print("\n[dim]Loading data and building pipeline…[/dim]")
     try:
-        pipeline = QueryMindPipeline(connector, semantic_map)
-    except RuntimeError as e:
-        console.print(f"[red]❌ Pipeline failed to start: {e}[/red]")
-        return
+        # ── File input ────────────────────────────────────────────────────
+        while True:
+            file_path = ask(
+                "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls)[/dim]"
+            )
+            try:
+                connector, preview_df = load_file(file_path)
+                rows = len(preview_df)
+                console.print(
+                    f"[green]✅ Loaded {rows:,} preview rows × "
+                    f"{len([c for c in preview_df.columns if c != '_sheet'])} columns[/green]"
+                )
+                break
+            except UserExitError:
+                raise  # bubble up — sheet selector raised it mid-flow
+            except RuntimeError as e:
+                console.print(f"[red]❌ {e}[/red]")
+                console.print(
+                    "[yellow]Please try again or type 'exit' to quit.[/yellow]"
+                )
+            except Exception as e:
+                console.print(f"[red]❌ Failed to load: {e}[/red]")
+                console.print(
+                    "[yellow]Please try again or type 'exit' to quit.[/yellow]"
+                )
 
-    console.print("[green]✅ Launching QueryMind UI…[/green]\n")
+        columns_all = [c for c in preview_df.columns if c != "_sheet"]
+        numeric_cols, categorical_cols, datetime_cols = detect_column_types(preview_df)
 
-    # ── Launch TUI ────────────────────────────────────────────────────
-    app = QueryMindApp(pipeline)
-    app.run()
+        # ── Show column overview ──────────────────────────────────────────
+        console.print()
+        show_columns(preview_df, numeric_cols, categorical_cols, datetime_cols)
+
+        # ── Semantic mapping ──────────────────────────────────────────────
+        console.print("\n[bold cyan]🧠 Help me understand your data[/bold cyan]")
+        console.print("[dim]Use column names exactly as shown above.[/dim]\n")
+
+        default_metric = numeric_cols[0] if numeric_cols else ""
+        default_dimension = categorical_cols[0] if categorical_cols else ""
+        default_time = datetime_cols[0] if datetime_cols else ""
+
+        if default_metric:
+            console.print(f"[dim]  Suggested metric    → {default_metric}[/dim]")
+        if default_dimension:
+            console.print(f"[dim]  Suggested dimension → {default_dimension}[/dim]")
+        if default_time:
+            console.print(f"[dim]  Suggested time col  → {default_time}[/dim]")
+        console.print()
+
+        metric = prompt_column(
+            "👉 Which column is the main VALUE to measure? (metric)", columns_all
+        )
+        dimension = prompt_column(
+            "👉 Which column to GROUP BY by default? (dimension)", columns_all
+        )
+        time_col = prompt_column(
+            "👉 Time column for trend queries? (optional — press Enter to skip)",
+            columns_all,
+            optional=True,
+        )
+
+        semantic_map = {"metric": metric, "dimension": dimension, "time": time_col}
+
+        console.print(
+            f"\n[green]✅ Semantic map:[/green] "
+            f"metric=[bold]{metric}[/bold]  "
+            f"dimension=[bold]{dimension}[/bold]  "
+            f"time=[bold]{time_col or 'none'}[/bold]"
+        )
+
+        # ── Build pipeline ────────────────────────────────────────────────
+        console.print("\n[dim]Loading data and building pipeline…[/dim]")
+        try:
+            pipeline = QueryMindPipeline(connector, semantic_map)
+        except RuntimeError as e:
+            console.print(f"[red]❌ Pipeline failed to start: {e}[/red]")
+            return
+
+        console.print("[green]✅ Launching QueryMind UI…[/green]\n")
+
+        app = QueryMindApp(pipeline)
+        app.run()
+
+    except UserExitError:
+        pass  # fall through to goodbye message
 
     os.system("cls" if os.name == "nt" else "clear")
-    print("🧠 QueryMind closed.\n")
+    console.print(
+        Panel.fit(
+            "[bold cyan]👋 Goodbye![/bold cyan]\n"
+            "[dim]Thanks for using QueryMind.[/dim]",
+            border_style="blue",
+        )
+    )
 
 
 if __name__ == "__main__":

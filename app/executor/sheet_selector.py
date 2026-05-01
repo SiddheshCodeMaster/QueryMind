@@ -5,16 +5,29 @@ from rich.prompt import Prompt
 
 console = Console()
 
+EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q"}
+
+
+def _ask(message: str) -> str:
+    """Prompt wrapper that raises UserExitError on exit words or Ctrl+C."""
+    # Import here to avoid circular import (main imports sheet_selector)
+    from app.cli.main import UserExitError
+
+    try:
+        value = Prompt.ask(message)
+    except (KeyboardInterrupt, EOFError):
+        raise UserExitError()
+    if value.strip().lower() in EXIT_WORDS:
+        raise UserExitError()
+    return value
+
 
 def get_sheet_info(file_path: str) -> dict:
-    """
-    Returns {sheet_name: {"rows": int, "cols": int, "columns": [str]}}
-    """
+    """Returns {sheet_name: {"rows": int, "cols": int, "columns": [str]}}"""
     xl = pd.ExcelFile(file_path)
     info = {}
     for name in xl.sheet_names:
         try:
-            df = xl.parse(name, nrows=5)  # only peek — fast
             full_df = xl.parse(name)
             info[name] = {
                 "rows": len(full_df),
@@ -28,8 +41,9 @@ def get_sheet_info(file_path: str) -> dict:
 
 def prompt_sheet_selection(file_path: str) -> list:
     """
-    Shows an interactive sheet picker in the terminal.
-    Returns a list of selected sheet names.
+    Interactive sheet picker.
+    Returns list of selected sheet names.
+    Raises UserExitError if the user types an exit command.
     """
     console.print("\n[bold cyan]📋 Excel Sheet Selection[/bold cyan]")
 
@@ -41,7 +55,6 @@ def prompt_sheet_selection(file_path: str) -> list:
 
     sheet_names = list(sheet_info.keys())
 
-    # Show sheet table
     table = Table(title="Available Sheets", border_style="blue", show_lines=True)
     table.add_column("#", style="bold yellow", width=4)
     table.add_column("Sheet", style="bold white")
@@ -54,31 +67,23 @@ def prompt_sheet_selection(file_path: str) -> list:
         sample = ", ".join(str(c) for c in info["columns"][:5])
         if len(info["columns"]) > 5:
             sample += f" … (+{len(info['columns']) - 5} more)"
-        table.add_row(
-            str(i),
-            name,
-            str(info["rows"]),
-            str(info["cols"]),
-            sample,
-        )
+        table.add_row(str(i), name, str(info["rows"]), str(info["cols"]), sample)
 
     console.print(table)
-
-    # Selection prompt
     console.print(
         "\n[dim]Options:[/dim]\n"
-        "  [yellow]•[/yellow] Enter sheet number(s) separated by commas: [bold]1[/bold] or [bold]1,2[/bold]\n"
+        "  [yellow]•[/yellow] Sheet number(s) separated by commas: [bold]1[/bold] or [bold]1,2[/bold]\n"
         "  [yellow]•[/yellow] Type [bold]all[/bold] to load all sheets\n"
+        "  [yellow]•[/yellow] Type [bold]exit[/bold] to quit\n"
     )
 
     while True:
-        raw = Prompt.ask("[cyan]👉 Select sheet(s)[/cyan]").strip().lower()
+        raw = _ask("[cyan]👉 Select sheet(s)[/cyan]").strip().lower()
 
         if raw == "all":
             selected = sheet_names
             break
 
-        # Parse comma-separated numbers
         parts = [p.strip() for p in raw.split(",")]
         try:
             indices = [int(p) for p in parts if p]
@@ -98,16 +103,16 @@ def prompt_sheet_selection(file_path: str) -> list:
             if valid and selected:
                 break
         except ValueError:
-            console.print("[red]❌ Please enter numbers or 'all'[/red]")
+            console.print(
+                "[red]❌ Please enter numbers, 'all', or 'exit' to quit.[/red]"
+            )
 
-    # Confirm selection
     if len(selected) == 1:
         console.print(f"\n[green]✅ Loading sheet:[/green] [bold]{selected[0]}[/bold]")
     else:
         console.print(
-            f"\n[green]✅ Loading {len(selected)} sheets:[/green] [bold]{', '.join(selected)}[/bold]"
-        )
-        console.print(
+            f"\n[green]✅ Loading {len(selected)} sheets:[/green] "
+            f"[bold]{', '.join(selected)}[/bold]\n"
             "[yellow]ℹ️  Sheets will be merged with a '_sheet' column added "
             "so you can filter per sheet in queries.[/yellow]"
         )
