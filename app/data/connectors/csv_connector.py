@@ -1,5 +1,6 @@
 import pandas as pd
 import chardet
+from app.data.type_caster import smart_cast_df
 
 
 def _detect_encoding(file_path: str) -> str:
@@ -78,12 +79,8 @@ class CSVConnector:
             # Normalize column names
             df.columns = [col.lower().strip().replace(" ", "_") for col in df.columns]
 
-            # Auto-detect numeric columns (>70% parseable as number → cast)
-            for col in df.columns:
-                converted = pd.to_numeric(df[col], errors="coerce")
-                non_null_ratio = converted.notna().sum() / max(len(df), 1)
-                if non_null_ratio > 0.7:
-                    df[col] = converted
+            # Smart cast: numeric + packed-date detection (shared logic)
+            df = smart_cast_df(df)
 
             context["dataframe"] = df
             context["schema"] = {

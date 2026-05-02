@@ -53,13 +53,27 @@ class Analyzer:
             context["error"] = "No query type detected. Please rephrase your question."
             return context
 
-        # ── Clean dimension ───────────────────────────────────────────────
-        df[dimension] = (
-            df[dimension]
-            .astype(str)
-            .str.strip()
-            .replace(["ERROR", "UNKNOWN", "Unknown", "nan", ""], "Unknown")
-        )
+        # ── Date granularity: group datetime columns by month/year/week ──
+        # If the dimension is a datetime column, extract the requested period
+        # so "which month" groups by month label, not individual dates.
+        if pd.api.types.is_datetime64_any_dtype(df[dimension]):
+            granularity = intent.get("time_granularity", "day")
+            if granularity == "year":
+                df[dimension] = df[dimension].dt.to_period("Y").astype(str)
+            elif granularity == "month":
+                df[dimension] = df[dimension].dt.to_period("M").astype(str)
+            elif granularity == "week":
+                df[dimension] = df[dimension].dt.to_period("W").astype(str)
+            else:
+                df[dimension] = df[dimension].dt.date.astype(str)
+        else:
+            # ── Clean categorical dimension ───────────────────────────────
+            df[dimension] = (
+                df[dimension]
+                .astype(str)
+                .str.strip()
+                .replace(["ERROR", "UNKNOWN", "Unknown", "nan", ""], "Unknown")
+            )
 
         # ── Coerce metric to numeric ──────────────────────────────────────
         df[metric] = pd.to_numeric(df[metric], errors="coerce")

@@ -118,6 +118,7 @@ def show_columns(df: pd.DataFrame, numeric: list, categorical: list, datetime: l
             col_type = "[magenta]datetime[/magenta]"
         else:
             col_type = "[yellow]categorical[/yellow]"
+        # print("DEBUG: ", df[col])
         sample = df[col].dropna().head(3).tolist()
         sample_str = ", ".join(str(v) for v in sample)
         table.add_row(col, col_type, sample_str)

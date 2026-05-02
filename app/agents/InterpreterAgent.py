@@ -26,13 +26,20 @@ class InterpreterAgent:
         "over time",
         "monthly",
         "daily",
+        "weekly",
+        "yearly",
         "total",
         "sum",
         "most",
         "least",
+        "max",
+        "min",
         "distribution",
         "breakdown",
         "compare",
+        "which",
+        "what",
+        "when",
     }
 
     # Order matters: first match wins.
@@ -55,6 +62,12 @@ class InterpreterAgent:
         ("distribution", "aggregation", "sum"),
         ("breakdown", "aggregation", "sum"),
         ("compare", "comparison", "sum"),
+        ("max", "comparison", "sum"),
+        ("min", "comparison", "sum"),
+        ("weekly", "trend", "sum"),
+        ("yearly", "trend", "sum"),
+        ("which", "comparison", "sum"),
+        ("when", "trend", "sum"),
     ]
 
     # Natural-language synonyms that mean "use the configured metric".
@@ -92,6 +105,22 @@ class InterpreterAgent:
         "product": "item",
         "products": "item",
         "category": "item",
+    }
+
+    # Time-related words that should route dimension → time column
+    TIME_WORDS = {
+        "month",
+        "monthly",
+        "year",
+        "yearly",
+        "annual",
+        "week",
+        "weekly",
+        "daily",
+        "day",
+        "date",
+        "over time",
+        "when",
     }
 
     def run(self, context):
@@ -198,11 +227,44 @@ class InterpreterAgent:
             if "bottom" in query:
                 intent["ascending"] = True
 
-        # ── trend: force time column as dimension ────────────────────────
+        # ── Time-word detection + granularity ───────────────────────────
+        # "which month gave max sales?" → trend grouped by month, not by day.
+        # Detect granularity first, then override query_type to trend.
+        time_col = semantic_map.get("time")
+        has_time_word = any(tw in query for tw in self.TIME_WORDS)
+
+        # Granularity: what period to group by
+        if "year" in query or "annual" in query or "yearly" in query:
+            intent["time_granularity"] = "year"
+        elif "month" in query or "monthly" in query:
+            intent["time_granularity"] = "month"
+        elif "week" in query or "weekly" in query:
+            intent["time_granularity"] = "week"
+        else:
+            intent["time_granularity"] = "day"  # default: daily
+
+        if has_time_word and time_col and time_col in columns:
+            intent["query_type"] = "trend"
+            intent["dimension"] = time_col
+
+        # ── trend: always ensure dimension is time column ─────────────────
         if intent["query_type"] == "trend":
-            time_col = semantic_map.get("time")
             if time_col and time_col in columns:
                 intent["dimension"] = time_col
+
+        # ── ascending flag for min/less/lowest queries ────────────────────
+        min_words = {
+            "minimum",
+            "min",
+            "less",
+            "least",
+            "lowest",
+            "worst",
+            "bottom",
+            "fewest",
+        }
+        if any(w in query for w in min_words):
+            intent["ascending"] = True
 
         # ── Sheet scope ──────────────────────────────────────────────────
         # Detect "in sheet Orders", "from Returns sheet", "across all sheets"
