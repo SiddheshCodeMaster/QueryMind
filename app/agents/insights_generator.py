@@ -138,4 +138,12 @@ class InsightGenerator:
             print(f"[InsightGenerator ERROR] {e}")
             traceback.print_exc()
             context["_insight_error"] = str(e)
+            # Always set a fallback answer so the user sees something
+            if not context.get("answer"):
+                raw = context.get("analysis")
+                context["answer"] = (
+                    raw.to_string()
+                    if raw is not None
+                    else "⚠️  Could not format results."
+                )
             return context

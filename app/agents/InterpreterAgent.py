@@ -243,14 +243,22 @@ class InterpreterAgent:
         else:
             intent["time_granularity"] = "day"  # default: daily
 
-        if has_time_word and time_col and time_col in columns:
-            intent["query_type"] = "trend"
-            intent["dimension"] = time_col
+        if has_time_word:
+            if time_col and time_col in columns:
+                # Time column configured → route to trend
+                intent["query_type"] = "trend"
+                intent["dimension"] = time_col
+            else:
+                # No time column configured → flag the error so pipeline
+                # can reject cleanly instead of running a bogus trend query
+                intent["no_time_column"] = True
 
         # ── trend: always ensure dimension is time column ─────────────────
         if intent["query_type"] == "trend":
             if time_col and time_col in columns:
                 intent["dimension"] = time_col
+            elif not intent.get("no_time_column"):
+                intent["no_time_column"] = True
 
         # ── ascending flag for min/less/lowest queries ────────────────────
         min_words = {

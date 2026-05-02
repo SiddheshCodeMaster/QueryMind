@@ -96,6 +96,15 @@ class QueryMindPipeline:
             context["intent"] = llm_context["intent"]
             context["llm_used"] = True
 
+        # STEP 3.5 – Guard: trend query but no time column configured
+        if context.get("intent", {}).get("no_time_column"):
+            context["error"] = (
+                "⏱️  This query needs a time column, but none was configured.\n\n"
+                "Re-run QueryMind and set a time column at the setup prompt, "
+                "or rephrase your question to use a different dimension."
+            )
+            return context
+
         # STEP 4 – Analyze
         context = self.analyzer.run(context)
         if context.get("error"):

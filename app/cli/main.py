@@ -94,7 +94,10 @@ def detect_column_types(df: pd.DataFrame) -> tuple:
     for col in obj_cols:
         if col == "_sheet":
             continue
-        sample = df[col].dropna().head(20)
+        col_data = df[col]
+        if isinstance(col_data, pd.DataFrame):
+            col_data = col_data.iloc[:, 0]  # duplicate col name → take first
+        sample = col_data.dropna().head(20)
         try:
             pd.to_datetime(sample, infer_datetime_format=True)
             datetime_cols.append(col)
@@ -118,9 +121,15 @@ def show_columns(df: pd.DataFrame, numeric: list, categorical: list, datetime: l
             col_type = "[magenta]datetime[/magenta]"
         else:
             col_type = "[yellow]categorical[/yellow]"
-        # print("DEBUG: ", df[col])
-        sample = df[col].dropna().head(3).tolist()
-        sample_str = ", ".join(str(v) for v in sample)
+        try:
+            col_data = df[col]
+            # Duplicate column names → df[col] returns DataFrame not Series
+            if isinstance(col_data, pd.DataFrame):
+                col_data = col_data.iloc[:, 0]
+            sample = col_data.dropna().head(3).tolist()
+            sample_str = ", ".join(str(v) for v in sample)
+        except Exception:
+            sample_str = "(error reading samples)"
         table.add_row(col, col_type, sample_str)
 
     console.print(table)
@@ -194,6 +203,17 @@ def load_file(file_path: str) -> tuple:
                 f"Please provide a file with at least one row of data."
             )
         preview_df.columns = [normalize_column(c) for c in preview_df.columns]
+        # Warn about duplicate column names after normalization
+        dupes = [
+            c for c in preview_df.columns if preview_df.columns.tolist().count(c) > 1
+        ]
+        if dupes:
+            unique_dupes = list(dict.fromkeys(dupes))  # preserve order, deduplicate
+            console.print(
+                f"[yellow]⚠️  Duplicate column names detected after normalization: "
+                f"{unique_dupes}. Only the first occurrence of each will be used.[/yellow]"
+            )
+            preview_df = preview_df.loc[:, ~preview_df.columns.duplicated()]
         if len(preview_df.columns) < 2:
             raise RuntimeError(
                 f"'{file_path}' only has 1 column ('{preview_df.columns[0]}'). "
