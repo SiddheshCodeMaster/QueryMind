@@ -36,9 +36,11 @@ class InsightGenerator:
             total = result.sum()
             abs_max = result.abs().max() or 1
 
-            # For comparison/top_n: display table high→low visually,
-            # but feature the correct item (min or max) per query direction.
-            if query_type in ("comparison", "top_n"):
+            # Always display table high→low for non-trend queries.
+            # Always derive featured item from idxmax/idxmin — never rely
+            # on sort order — so the insight is correct regardless of how
+            # the analyzer returned the result.
+            if query_type != "trend":
                 display_result = result.sort_values(ascending=False)
                 if ascending:
                     featured_value = result.min()
@@ -47,7 +49,7 @@ class InsightGenerator:
                     featured_value = result.max()
                     featured_category = result.idxmax()
             else:
-                display_result = result
+                display_result = result  # trend keeps chronological order
                 featured_value = result.iloc[0]
                 featured_category = result.index[0]
 

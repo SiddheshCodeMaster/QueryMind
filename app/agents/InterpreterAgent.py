@@ -40,6 +40,18 @@ class InterpreterAgent:
         "which",
         "what",
         "when",
+        # Display / grouping words — common in natural phrasing
+        "show",
+        "show me",
+        "give me",
+        "list",
+        "get",
+        "find",
+        "by",
+        "per",
+        "across",
+        "grouped",
+        "group",
     }
 
     # Order matters: first match wins.
@@ -278,11 +290,37 @@ class InterpreterAgent:
         # Detect "in sheet Orders", "from Returns sheet", "across all sheets"
         available_sheets = context.get("excel_sheets", [])
         if available_sheets:
-            intent["sheet"] = _detect_sheet_scope(query, available_sheets)
+            scope = _detect_sheet_scope(query, available_sheets)
+
+            # Nonexistent sheet → error immediately, don't silently fall back
+            if isinstance(scope, tuple) and scope[0] == _SHEET_NOT_FOUND:
+                _, mentioned = scope
+                context["error"] = (
+                    f"❌ Sheet '{mentioned}' is not loaded.\n"
+                    f"  Loaded sheets: {available_sheets}\n\n"
+                    f"  Try one of the loaded sheets, or re-run QueryMind "
+                    f"and select '{mentioned}' if it exists in your file."
+                )
+                return context
+
+            intent["sheet"] = scope
 
         # ── Confidence ───────────────────────────────────────────────────
         has_strong = any(kw in query for kw in self.STRONG_KEYWORDS)
-        context["intent_confidence"] = 0.9 if has_strong else 0.2
+
+        # Sheet name mention in query is a strong signal of analytical intent
+        sheet_mentioned = any(
+            s.lower() in query for s in context.get("excel_sheets", [])
+        )
+
+        # Column name mention is also a strong signal
+        col_mentioned = any(
+            col.replace("_", " ") in query or col in query for col in columns
+        )
+
+        context["intent_confidence"] = (
+            0.9 if (has_strong or sheet_mentioned or col_mentioned) else 0.2
+        )
 
         context["intent"] = intent
         return context
@@ -295,13 +333,16 @@ class InterpreterAgent:
 #   "average profit from the Returns sheet"
 #   "across all sheets"
 
-import re as _re
+# Sentinel returned when user mentioned a sheet name that doesn't exist
+_SHEET_NOT_FOUND = "__SHEET_NOT_FOUND__"
 
 
-def _detect_sheet_scope(query: str, available_sheets: list) -> str | None:
+def _detect_sheet_scope(query: str, available_sheets: list):
     """
-    Returns a sheet name if the query targets a specific sheet,
-    or None if it targets all loaded sheets.
+    Returns:
+      - sheet name (str)  → user referenced a loaded sheet
+      - None              → use combined df (all sheets / no sheet mentioned)
+      - _SHEET_NOT_FOUND  → user mentioned "sheet X" but X isn't loaded
     """
     q = query.lower()
 
@@ -309,9 +350,18 @@ def _detect_sheet_scope(query: str, available_sheets: list) -> str | None:
     if any(p in q for p in ["all sheets", "across sheets", "every sheet", "all data"]):
         return None
 
-    # "in sheet <name>" / "from sheet <name>" / "sheet <name>"
+    # Match a loaded sheet name
     for sheet in available_sheets:
         if sheet.lower() in q:
             return sheet
+
+    # Detect "sheet <word>" pattern where <word> didn't match any loaded sheet
+    sheet_ref = re.search(
+        r"(?:in|from|on|the|of)?\s*sheet\s+([\w\s]+?)(?:\s+sheet)?(?:$|\s+by|\s+in|\s+with|\s+for)",
+        q,
+    )
+    if sheet_ref:
+        mentioned = sheet_ref.group(1).strip().title()
+        return _SHEET_NOT_FOUND, mentioned  # return tuple: sentinel + what user typed
 
     return None

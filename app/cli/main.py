@@ -18,7 +18,7 @@ EXCEL_EXTS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
 CSV_EXTS = {".csv", ".tsv"}
 
 # Words that mean "I want to quit" at any prompt
-EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q"}
+EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q", "bye", "/bye"}
 
 
 # ─────────────────────────────────────────────

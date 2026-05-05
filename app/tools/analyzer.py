@@ -27,28 +27,47 @@ class Analyzer:
 
         # ── Sheet-aware dataframe selection ──────────────────────────────
         if target_sheet and target_sheet in context.get("sheet_dataframes", {}):
-            # Use only that sheet's dataframe
             df = context["sheet_dataframes"][target_sheet].copy()
         else:
             df = context["dataframe"].copy()
 
         # ── Guard: columns must exist ─────────────────────────────────────
         all_columns = df.columns.tolist()
+        visible_cols = [c for c in all_columns if c != "_sheet"]
 
         if not metric or metric not in all_columns:
-            context["error"] = (
-                f"Metric column '{metric}' not found.\n"
-                f"Available: {[c for c in all_columns if c != '_sheet']}"
-            )
+            numeric_in_sheet = df.select_dtypes(include="number").columns.tolist()
+            id_hints = {"id", "_id", "key", "code", "num", "no", "number"}
+            real_numeric = [
+                c for c in numeric_in_sheet if not any(h in c.lower() for h in id_hints)
+            ]
+
+            if target_sheet and not real_numeric:
+                context["error"] = (
+                    f"The '{target_sheet}' sheet has no numeric columns to measure.\n"
+                    f"  Columns in this sheet: {visible_cols}\n\n"
+                    f"This sheet is likely a lookup/reference table.\n"
+                    f"Try querying a sheet that has numeric data, like Orders."
+                )
+            elif target_sheet and real_numeric:
+                context["error"] = (
+                    f"'{metric}' is not available in the '{target_sheet}' sheet.\n"
+                    f"  Available numeric columns here: {real_numeric}\n"
+                    f"  Try: 'top 5 by {real_numeric[0]} in {target_sheet}'"
+                )
+            else:
+                context["error"] = (
+                    f"Metric column '{metric}' not found.\n"
+                    f"  Available columns: {visible_cols}"
+                )
             return context
 
         if not dimension or dimension not in all_columns:
             context["error"] = (
                 f"Dimension column '{dimension}' not found.\n"
-                f"Available: {[c for c in all_columns if c != '_sheet']}"
+                f"  Available columns: {visible_cols}"
             )
             return context
-
         if not query_type:
             context["error"] = "No query type detected. Please rephrase your question."
             return context
@@ -108,6 +127,8 @@ class Analyzer:
                     if op == "mean"
                     else df.groupby(dimension)[metric].sum()
                 )
+                # Always sort by value so display and insight are consistent
+                result = result.sort_values(ascending=ascending)
 
             elif query_type == "trend":
                 result = df.groupby(dimension)[metric].sum().sort_index()
