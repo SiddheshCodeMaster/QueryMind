@@ -166,10 +166,17 @@ class InterpreterAgent:
         }
 
         # ── Metric resolution ────────────────────────────────────────────
+        # Internal/system columns that must never be used as metric or dimension
+        INTERNAL_COLS = {"_sheet"}
+
         # 1. If an exact column name appears in the query → use it as metric
         metric_found = False
         for col in columns:
-            readable = col.replace("_", " ")
+            if col in INTERNAL_COLS:
+                continue
+            readable = col.replace("_", " ").strip()
+            if not readable:
+                continue
             if col in query or readable in query:
                 # Heuristic: if this column is numeric-ish name, treat as metric
                 numeric_hints = {
@@ -210,7 +217,11 @@ class InterpreterAgent:
         # 2. Exact column name match (catches user's own column names)
         if not dim_set:
             for col in columns:
-                readable = col.replace("_", " ")
+                if col in INTERNAL_COLS:
+                    continue
+                readable = col.replace("_", " ").strip()
+                if not readable:
+                    continue
                 if col in query or readable in query:
                     if col != intent.get("metric"):  # don't use metric as dimension
                         intent["dimension"] = col
@@ -333,6 +344,8 @@ class InterpreterAgent:
 #   "average profit from the Returns sheet"
 #   "across all sheets"
 
+import re as _re
+
 # Sentinel returned when user mentioned a sheet name that doesn't exist
 _SHEET_NOT_FOUND = "__SHEET_NOT_FOUND__"
 
@@ -356,7 +369,7 @@ def _detect_sheet_scope(query: str, available_sheets: list):
             return sheet
 
     # Detect "sheet <word>" pattern where <word> didn't match any loaded sheet
-    sheet_ref = re.search(
+    sheet_ref = _re.search(
         r"(?:in|from|on|the|of)?\s*sheet\s+([\w\s]+?)(?:\s+sheet)?(?:$|\s+by|\s+in|\s+with|\s+for)",
         q,
     )

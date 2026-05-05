@@ -23,10 +23,7 @@ class QueryMindApp(App):
     }
     """
 
-    BINDINGS = [
-        ("q", "quit", "Quit"),
-        ("ctrl+c", "quit", "Quit"),
-    ]
+    BINDINGS = [("q", "quit", "Quit"), ("ctrl+c", "quit", "Quit"), ("/bye", "bye")]
 
     def __init__(self, pipeline):
         super().__init__()
@@ -69,7 +66,7 @@ class QueryMindApp(App):
         if not query:
             return
 
-        if query.lower() in ["exit", "quit"]:
+        if query.lower() in ["exit", "quit", "bye", "/bye"]:
             self.exit()
             return
 

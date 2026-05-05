@@ -7,7 +7,7 @@ from app.data.connectors.excel_connector import ExcelConnector
 from app.security.schema_filter import SchemaFilter
 from app.data.schema_engine import SchemaEngine
 from app.agents.insights_generator import InsightGenerator
-# from app.tools.join_resolver import JoinResolver
+from app.tools.join_resolver import JoinResolver
 
 
 class QueryMindPipeline:
@@ -46,7 +46,7 @@ class QueryMindPipeline:
         self.llm_interpreter = LLMInterpreter()
         self.insight_generator = InsightGenerator()
         self.analyzer = Analyzer()
-        # self.join_resolver = JoinResolver()
+        self.join_resolver = JoinResolver()
 
         # Load + cache base context once at startup
         self._base_context = {}
