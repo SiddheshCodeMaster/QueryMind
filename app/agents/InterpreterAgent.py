@@ -52,6 +52,15 @@ class InterpreterAgent:
         "across",
         "grouped",
         "group",
+        # Sort order
+        "ascending",
+        "descending",
+        "asc",
+        "desc",
+        "increasing",
+        "decreasing",
+        "sorted",
+        "order",
     }
 
     # Order matters: first match wins.
@@ -142,14 +151,27 @@ class InterpreterAgent:
 
         columns = [col["name"] for col in schema]
 
-        # Validate semantic_map columns exist in the dataframe
+        # Internal/system columns that must never appear in intent
+        # (defined early so validation below can reference it)
+        INTERNAL_COLS = {"_sheet"}
+
+        # Validate semantic_map columns exist in the dataframe and are not internal
         default_metric = semantic_map.get("metric")
         default_dimension = semantic_map.get("dimension")
 
-        if default_metric not in columns:
+        if default_metric not in columns or default_metric in INTERNAL_COLS:
             default_metric = None
-        if default_dimension not in columns:
-            default_dimension = None
+        if default_dimension not in columns or default_dimension in INTERNAL_COLS:
+            # Pick the first real categorical column as fallback
+            default_dimension = next(
+                (
+                    c
+                    for c in columns
+                    if c not in INTERNAL_COLS
+                    and not any(h in c for h in {"id", "row_id", "index", "key"})
+                ),
+                None,
+            )
 
         # Guard: empty / numeric-only
         if not query or query.isdigit():
@@ -166,8 +188,7 @@ class InterpreterAgent:
         }
 
         # ── Metric resolution ────────────────────────────────────────────
-        # Internal/system columns that must never be used as metric or dimension
-        INTERNAL_COLS = {"_sheet"}
+        # (INTERNAL_COLS defined above at validation step)
 
         # 1. If an exact column name appears in the query → use it as metric
         metric_found = False
@@ -283,8 +304,42 @@ class InterpreterAgent:
             elif not intent.get("no_time_column"):
                 intent["no_time_column"] = True
 
-        # ── ascending flag for min/less/lowest queries ────────────────────
-        min_words = {
+        # ── Sort order detection ─────────────────────────────────────────
+        # Explicit order phrases take priority over implicit min/max words.
+
+        ASC_PHRASES = {
+            "ascending order",
+            "ascending",
+            "asc order",
+            "asc",
+            "lowest to highest",
+            "low to high",
+            "smallest to largest",
+            "increasing order",
+            "increasing",
+            "worst to best",
+            "least to most",
+        }
+        DESC_PHRASES = {
+            "descending order",
+            "descending",
+            "desc order",
+            "desc",
+            "highest to lowest",
+            "high to low",
+            "largest to smallest",
+            "decreasing order",
+            "decreasing",
+            "best to worst",
+            "most to least",
+        }
+
+        # Check explicit order phrases first
+        explicit_asc = any(p in query for p in ASC_PHRASES)
+        explicit_desc = any(p in query for p in DESC_PHRASES)
+
+        # Implicit: min/low/worst words suggest ascending (lowest first)
+        MIN_WORDS = {
             "minimum",
             "min",
             "less",
@@ -293,9 +348,17 @@ class InterpreterAgent:
             "worst",
             "bottom",
             "fewest",
+            "smallest",
         }
-        if any(w in query for w in min_words):
+        implicit_asc = any(w in query for w in MIN_WORDS)
+
+        if explicit_asc and not explicit_desc:
             intent["ascending"] = True
+        elif explicit_desc and not explicit_asc:
+            intent["ascending"] = False
+        elif implicit_asc and not explicit_desc:
+            intent["ascending"] = True
+        # else: default (False = descending/highest first) stays
 
         # ── Sheet scope ──────────────────────────────────────────────────
         # Detect "in sheet Orders", "from Returns sheet", "across all sheets"
@@ -315,6 +378,36 @@ class InterpreterAgent:
                 return context
 
             intent["sheet"] = scope
+
+            # ── Sheet-aware dimension fallback ────────────────────────────
+            # If a specific sheet is scoped AND no explicit dimension was
+            # found in the query, pick the first valid categorical column
+            # from THAT sheet rather than using the global semantic default.
+            # This prevents "_sheet" or a cross-sheet column from leaking in.
+            if (
+                scope
+                and not isinstance(scope, tuple)
+                and (
+                    intent["dimension"] == default_dimension
+                    or intent["dimension"] in INTERNAL_COLS
+                    or intent["dimension"] is None
+                )
+            ):
+                sheet_df = context.get("sheet_dataframes", {}).get(scope)
+                if sheet_df is not None:
+                    # Find first non-internal, non-numeric, non-id column
+                    id_hints = {"id", "key", "index", "row", "num", "code"}
+                    sheet_categoricals = [
+                        c
+                        for c in sheet_df.columns
+                        if c not in INTERNAL_COLS
+                        and c != intent.get("metric")
+                        and not any(h in c.lower() for h in id_hints)
+                        and str(sheet_df[c].dtype) in ("object", "str", "string")
+                        and "datetime" not in str(sheet_df[c].dtype)
+                    ]
+                    if sheet_categoricals:
+                        intent["dimension"] = sheet_categoricals[0]
 
         # ── Confidence ───────────────────────────────────────────────────
         has_strong = any(kw in query for kw in self.STRONG_KEYWORDS)

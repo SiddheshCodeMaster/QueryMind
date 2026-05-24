@@ -30,6 +30,16 @@ ANALYTICAL_KEYWORDS = {
     "comparison",
     "distribution",
     "breakdown",
+    "ascending",
+    "descending",
+    "asc",
+    "desc",
+    "increasing",
+    "decreasing",
+    "lowest to highest",
+    "highest to lowest",
+    "sorted",
+    "order",
     # question words
     "show",
     "give",
@@ -90,14 +100,14 @@ class InputGuard:
     def run(self, context):
         query = context.get("user_query", "").strip()
 
-        # --- Empty Query ---
+        # --- Empty ---
         if not query:
             context["error"] = "Please enter a question."
             return context
 
         query_lower = query.lower()
 
-        # --- Sensitive content (User SQL injection) ---
+        # --- Sensitive content ---
         for word in BLOCKED_KEYWORDS:
             if word in query_lower:
                 context["error"] = (

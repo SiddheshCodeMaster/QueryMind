@@ -47,6 +47,9 @@ class ExcelConnector:
                 df["_sheet"] = sheet
                 frames.append(df)
             combined = pd.concat(frames, ignore_index=True, sort=False)
+            # pd.concat upcasts int64 → float64 when a column is missing
+            # in some sheets (NaN rows force the upcast). Re-run downcast.
+            combined = smart_cast_df(combined)
 
         print(f"✅ Excel loaded ({mode}): {self.selected_sheets}")
         print(f"   Shape: {combined.shape}  Cols: {combined.columns.tolist()}")

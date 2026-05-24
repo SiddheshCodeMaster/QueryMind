@@ -1,3 +1,37 @@
+Metadata-Version: 2.4
+Name: querymind-cli
+Version: 0.1.0
+Summary: CLI AI Data Analyst — query CSV and Excel files in plain English
+Author-email: Siddhesh <siddhesh.codemaster.github@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/SiddheshCodeMaster/QueryMind
+Project-URL: Repository, https://github.com/SiddheshCodeMaster/QueryMind
+Project-URL: Bug Tracker, https://github.com/SiddheshCodeMaster/QueryMind/issues
+Keywords: data analysis,cli,natural language,csv,excel,pandas,llm,ollama,terminal,data analytics
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: Utilities
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=2.0
+Requires-Dist: rich>=13.0
+Requires-Dist: textual>=0.47
+Requires-Dist: requests>=2.31
+Requires-Dist: chardet>=5.0
+Requires-Dist: openpyxl>=3.1
+Requires-Dist: xlrd>=2.0
+Dynamic: license-file
+
 ﻿# 🧠 QueryMind
 
 **Ask questions about your data in plain English. No SQL. No code. Just a terminal.**

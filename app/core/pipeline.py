@@ -48,6 +48,9 @@ class QueryMindPipeline:
         self.analyzer = Analyzer()
         self.join_resolver = JoinResolver()
 
+        # Check Ollama availability at startup
+        self.llm_available = self._check_ollama()
+
         # Load + cache base context once at startup
         self._base_context = {}
         self._base_context = connector.run(self._base_context)
@@ -55,6 +58,28 @@ class QueryMindPipeline:
             raise RuntimeError(f"Failed to load data: {self._base_context['error']}")
         self._base_context = self.schema_filter.run(self._base_context)
         self._base_context = self.schema_engine.run(self._base_context)
+
+    # ------------------------------------------------------------------
+    def _check_ollama(self) -> bool:
+        """
+        Ping Ollama at startup. Returns True if reachable, False otherwise.
+        Prints a clear warning so the user knows LLM fallback is disabled.
+        """
+        try:
+            import requests
+
+            resp = requests.get("http://localhost:11434", timeout=3)
+            if resp.status_code == 200:
+                print("✅ Ollama detected — LLM fallback enabled")
+                return True
+        except Exception:
+            pass
+        print(
+            "⚠️  Ollama not detected on localhost:11434\n"
+            "   LLM fallback disabled — rule-based interpreter only.\n"
+            "   To enable: install Ollama from https://ollama.ai and run: ollama pull phi"
+        )
+        return False
 
     # ------------------------------------------------------------------
     def _check_missing_column(self, context: dict) -> dict:
@@ -171,11 +196,38 @@ class QueryMindPipeline:
             "table",
             "column",
             "field",
+            "ascending",
+            "descending",
+            "asc",
+            "desc",
+            "increasing",
+            "decreasing",
+            "sort",
+            "sorted",
+            "order",
+            "ordering",
+            # Common filler words that are not column names
+            "specific",
+            "wise",
+            "based",
+            "overall",
+            "give",
+            "respective",
+            "related",
+            "breakdown",
+            "detail",
+            "particular",
+            "certain",
+            "various",
+            "different",
         }
 
-        # Add sheet names to stop words so they don't trigger false positives
+        # Add sheet names AND every individual word in each sheet name
+        # so "List of Orders" doesn't cause "orders" to be flagged as missing
         for s in context.get("excel_sheets", []):
             STOP_WORDS.add(s.lower())
+            for word in s.lower().split():
+                STOP_WORDS.add(word)
 
         words = re.findall(r"[a-zA-Z]+", query)
 
@@ -258,11 +310,23 @@ class QueryMindPipeline:
 
         confidence = context.get("intent_confidence", 0)
 
-        # STEP 3 – LLM fallback
+        # STEP 3 – LLM fallback (only when Ollama is available and confidence is low)
         if confidence < 0.8:
+            if not self.llm_available:
+                # Ollama is down — reject low-confidence queries cleanly
+                context["error"] = (
+                    "❓ I couldn't understand that query, and the LLM fallback "
+                    "is unavailable (Ollama not running).\n\n"
+                    "Try rephrasing with clearer keywords:\n"
+                    "  • 'top 5 items by sales'\n"
+                    "  • 'highest revenue by location'\n"
+                    "  • 'average spend by payment method'\n"
+                    "  • 'total sales trend over time'"
+                )
+                return context
+
             llm_context = self.llm_interpreter.run(dict(context))
             if llm_context.get("error"):
-                # LLM failed → reject; don't silently fall back to defaults
                 context["error"] = (
                     "❓ I couldn't understand that query.\n\n"
                     "Try something like:\n"

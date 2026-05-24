@@ -1,0 +1,2 @@
+[console_scripts]
+querymind = app.cli.main:main

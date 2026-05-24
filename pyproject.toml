@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "querymind-cli"
+version = "0.1.0"
+description = "CLI AI Data Analyst — query CSV and Excel files in plain English"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Siddhesh", email = "siddhesh.codemaster.github@gmail.com" }
+]
+keywords = [
+    "data analysis", "cli", "natural language", "csv", "excel",
+    "pandas", "llm", "ollama", "terminal", "data analytics"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "pandas>=2.0",
+    "rich>=13.0",
+    "textual>=0.47",
+    "requests>=2.31",
+    "chardet>=5.0",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+]
+
+[project.scripts]
+querymind = "app.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/SiddheshCodeMaster/QueryMind"
+Repository = "https://github.com/SiddheshCodeMaster/QueryMind"
+"Bug Tracker" = "https://github.com/SiddheshCodeMaster/QueryMind/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.txt"]

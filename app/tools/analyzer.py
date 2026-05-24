@@ -62,6 +62,17 @@ class Analyzer:
                 )
             return context
 
+        # Hard guard: internal/system columns must never be used as dimension
+        INTERNAL_COLS = {"_sheet"}
+        if dimension in INTERNAL_COLS:
+            context["error"] = (
+                f"'{dimension}' is an internal system column and cannot be "
+                f"used as a dimension.\n\n"
+                f"  Please rephrase and specify a real dimension column.\n"
+                f"  Available columns: {visible_cols}"
+            )
+            return context
+
         if not dimension or dimension not in all_columns:
             context["error"] = (
                 f"Dimension column '{dimension}' not found.\n"
