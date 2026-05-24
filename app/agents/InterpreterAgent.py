@@ -304,8 +304,15 @@ class InterpreterAgent:
             elif not intent.get("no_time_column"):
                 intent["no_time_column"] = True
 
-        # ── Sort order detection ─────────────────────────────────────────
-        # Explicit order phrases take priority over implicit min/max words.
+        # ── Sort order + focus detection ──────────────────────────────────
+        # Two separate concepts:
+        # - sort_ascending: how to ORDER the table (asc or desc)
+        # - focus_min:      which END to HIGHLIGHT in the insight text
+        #
+        # "lowest sales in descending order" →
+        #     sort_ascending=False (table high→low), focus_min=True (highlight South)
+        # "highest sales in ascending order" →
+        #     sort_ascending=True  (table low→high), focus_min=False (highlight East)
 
         ASC_PHRASES = {
             "ascending order",
@@ -333,12 +340,6 @@ class InterpreterAgent:
             "best to worst",
             "most to least",
         }
-
-        # Check explicit order phrases first
-        explicit_asc = any(p in query for p in ASC_PHRASES)
-        explicit_desc = any(p in query for p in DESC_PHRASES)
-
-        # Implicit: min/low/worst words suggest ascending (lowest first)
         MIN_WORDS = {
             "minimum",
             "min",
@@ -350,15 +351,37 @@ class InterpreterAgent:
             "fewest",
             "smallest",
         }
-        implicit_asc = any(w in query for w in MIN_WORDS)
+        MAX_WORDS = {
+            "maximum",
+            "max",
+            "most",
+            "highest",
+            "greatest",
+            "best",
+            "top",
+            "largest",
+            "biggest",
+        }
 
+        explicit_asc = any(p in query for p in ASC_PHRASES)
+        explicit_desc = any(p in query for p in DESC_PHRASES)
+        implicit_min = any(w in query for w in MIN_WORDS)
+        implicit_max = any(w in query for w in MAX_WORDS)
+
+        # Sort order: explicit phrase wins; implicit min → asc; default → desc
         if explicit_asc and not explicit_desc:
             intent["ascending"] = True
         elif explicit_desc and not explicit_asc:
             intent["ascending"] = False
-        elif implicit_asc and not explicit_desc:
+        elif implicit_min and not implicit_max:
             intent["ascending"] = True
-        # else: default (False = descending/highest first) stays
+        # else: default False (descending) already set
+
+        # Focus: driven only by min/max intent words, not sort phrase
+        if implicit_min and not implicit_max:
+            intent["focus_min"] = True
+        else:
+            intent["focus_min"] = False
 
         # ── Sheet scope ──────────────────────────────────────────────────
         # Detect "in sheet Orders", "from Returns sheet", "across all sheets"

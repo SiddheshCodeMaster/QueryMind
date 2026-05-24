@@ -36,13 +36,15 @@ class InsightGenerator:
             total = result.sum()
             abs_max = result.abs().max() or 1
 
-            # Always display table high→low for non-trend queries.
-            # Always derive featured item from idxmax/idxmin — never rely
-            # on sort order — so the insight is correct regardless of how
-            # the analyzer returned the result.
+            # Display table: sort_ascending controls table order.
+            # focus_min controls which item is featured in insight text.
+            # These are now independent — "lowest in descending order"
+            # shows table high→low but still highlights the minimum.
+            focus_min = intent.get("focus_min", ascending)
+
             if query_type != "trend":
-                display_result = result.sort_values(ascending=False)
-                if ascending:
+                display_result = result.sort_values(ascending=ascending)
+                if focus_min:
                     featured_value = result.min()
                     featured_category = result.idxmin()
                 else:
@@ -64,13 +66,16 @@ class InsightGenerator:
             table = "\n".join(table_rows)
 
             # --- Direction-aware language ---
-            if ascending:
+            # verb uses focus_min (what user CARES about)
+            # heading_pfx uses ascending (how table is SORTED)
+            if focus_min:
                 verb = "has the least"
-                heading_pfx = "Bottom"
             else:
                 verb = "leads with"
+            if ascending:
+                heading_pfx = "Bottom"
+            else:
                 heading_pfx = "Top"
-
             # --- Compose answer ---
             if query_type in ("comparison", "top_n"):
                 limit = intent.get("limit")

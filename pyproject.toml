@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "querymind-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI AI Data Analyst — query CSV and Excel files in plain English"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
-    { name = "Siddhesh", email = "siddhesh.codemaster.github@gmail.com" }
+    { name = "Siddhesh", email = "siddhesh.codemaster.github@email.com" }
 ]
 keywords = [
     "data analysis", "cli", "natural language", "csv", "excel",
