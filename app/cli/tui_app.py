@@ -68,13 +68,31 @@ class QueryMindApp(App):
 
     # ------------------------------------------------------------------ #
 
+    def _close_session(self):
+        """Save session log and show the file path to user."""
+        try:
+            saved_path = self.pipeline.logger.close()
+            if saved_path:
+                self.chat_history += f"\n📝 Session saved:\n   {saved_path}\n"
+                self.chat.update(self.chat_history)
+        except Exception:
+            pass
+
+    def on_unmount(self) -> None:
+        """Called when app closes via any method (Ctrl+C, window close)."""
+        try:
+            self.pipeline.logger.close()
+        except Exception:
+            pass
+
     async def on_input_submitted(self, event: Input.Submitted):
         query = event.value.strip()
 
         if not query:
             return
 
-        if query.lower() in ("exit", "quit", "/bye", "bye", "/c"):
+        if query.lower() in ("exit", "quit", "bye", "/exit", "/bye", "/q"):
+            self._close_session()
             self.exit()
             return
 

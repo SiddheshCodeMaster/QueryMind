@@ -36,6 +36,7 @@ app/tests/llm_test.py
 app/tools/__init__.py
 app/tools/analyzer.py
 app/tools/join_resolver.py
+app/tools/session_logger.py
 app/tools/sql_writer.py
 app/tools/validator.py
 querymind_cli.egg-info/PKG-INFO

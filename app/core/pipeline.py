@@ -7,6 +7,7 @@ from app.data.connectors.excel_connector import ExcelConnector
 from app.security.schema_filter import SchemaFilter
 from app.data.schema_engine import SchemaEngine
 from app.agents.insights_generator import InsightGenerator
+from app.tools.session_logger import SessionLogger
 from app.tools.join_resolver import JoinResolver
 
 
@@ -50,6 +51,14 @@ class QueryMindPipeline:
 
         # Check Ollama availability at startup
         self.llm_available = self._check_ollama()
+
+        # Session logger — records all queries + answers to Markdown
+        # connector.file_path holds the original path for both CSV and Excel
+        _file_path = getattr(connector, "file_path", "")
+        self.logger = SessionLogger(
+            file_path=_file_path,
+            semantic_map=semantic_map,
+        )
 
         # Load + cache base context once at startup
         self._base_context = {}
@@ -375,5 +384,12 @@ class QueryMindPipeline:
                 if raw is not None
                 else "⚠️  Could not generate an answer for that query."
             )
+
+        # Log to session file
+        self.logger.log(
+            query=context.get("user_query", ""),
+            answer=context.get("answer", ""),
+            error=context.get("error"),
+        )
 
         return context
