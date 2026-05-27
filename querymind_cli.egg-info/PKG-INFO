@@ -1,8 +1,8 @@
 Metadata-Version: 2.4
 Name: querymind-cli
-Version: 0.1.1
+Version: 0.1.2
 Summary: CLI AI Data Analyst — query CSV and Excel files in plain English
-Author-email: Siddhesh <siddhesh.codemaster.github@email.com>
+Author-email: Siddhesh <sidcode1606@gmail.com>
 License: MIT
 Project-URL: Homepage, https://github.com/SiddheshCodeMaster/QueryMind
 Project-URL: Repository, https://github.com/SiddheshCodeMaster/QueryMind
@@ -120,6 +120,19 @@ Analyzer         — pandas groupby / aggregation
     ↓
 InsightGenerator — formats result + ASCII bar chart
 ```
+
+---
+
+## Session History
+
+Every query and answer is automatically saved to:
+```
+~/querymind_sessions/querymind_history.md
+```
+
+This is a single persistent Markdown file — all sessions across all datasets append to it. Open it in any editor or view it on GitHub.
+
+Inside the TUI, type `/history` to see your last 5 queries and the file path.
 
 ---
 

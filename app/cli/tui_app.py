@@ -47,7 +47,10 @@ class QueryMindApp(App):
         self.chat = Static(self.chat_history, id="chat")
         yield self.chat
 
-        self.input = Input(placeholder="Ask a question about your data...", id="input")
+        self.input = Input(
+            placeholder="Ask a question — or type /history to review queries",
+            id="input",
+        )
         yield self.input
 
         yield Footer()
@@ -64,9 +67,56 @@ class QueryMindApp(App):
             if getattr(self.pipeline, "llm_available", False)
             else "LLM   : ⚠️  Offline (rule-based only)"
         )
-        return f"Agent : QueryMind\nMode  : Local Analysis\n{llm_status}\n{sheet_line}"
+        try:
+            history_path = self.pipeline.logger.path
+        except Exception:
+            history_path = ""
+        history_line = (
+            f"Log   : ~/querymind_sessions/querymind_history.md\n"
+            if history_path
+            else ""
+        )
+        return (
+            f"Agent : QueryMind\n"
+            f"Mode  : Local Analysis\n"
+            f"{llm_status}\n"
+            f"{history_line}"
+            f"{sheet_line}"
+        )
 
     # ------------------------------------------------------------------ #
+
+    def _show_history(self):
+        """Show last 5 queries from this session + path to full history file."""
+        try:
+            recent = self.pipeline.logger.get_recent(5)
+            path = self.pipeline.logger.path
+
+            if not recent:
+                self.chat_history += (
+                    f"\n📋 No queries logged yet this session.\n"
+                    f"   Full history: {path}\n"
+                )
+            else:
+                lines = [
+                    f"\n📋 Last {len(recent)} quer{'y' if len(recent) == 1 else 'ies'} this session:"
+                ]
+                lines.append("─" * 50)
+                for i, (q, a) in enumerate(recent, 1):
+                    # Show query + first line of answer only
+                    first_line = a.splitlines()[0] if a else "—"
+                    lines.append(f"  Q{i}: {q}")
+                    lines.append(
+                        f"      → {first_line[:60]}{'…' if len(first_line) > 60 else ''}"
+                    )
+                lines.append("─" * 50)
+                lines.append(f"📁 Full history: {path}")
+                self.chat_history += "\n".join(lines) + "\n"
+
+            self.chat.update(self.chat_history)
+        except Exception as e:
+            self.chat_history += f"\n❌ Could not load history: {e}\n"
+            self.chat.update(self.chat_history)
 
     def _close_session(self):
         """Save session log and show the file path to user."""
@@ -91,9 +141,15 @@ class QueryMindApp(App):
         if not query:
             return
 
-        if query.lower() in ("exit", "quit", "bye", "/exit", "/bye", "/q"):
+        if query.lower() in ("exit", "quit", "bye", "/exit", "/quit", "/bye", "/c"):
             self._close_session()
             self.exit()
+            return
+
+        # /history command — show recent queries + file path
+        if query.lower() in ("/history", "/h"):
+            self._show_history()
+            self.input.value = ""
             return
 
         self.chat_history += f"\n>> {query}"

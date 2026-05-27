@@ -89,6 +89,19 @@ InsightGenerator — formats result + ASCII bar chart
 
 ---
 
+## Session History
+
+Every query and answer is automatically saved to:
+```
+~/querymind_sessions/querymind_history.md
+```
+
+This is a single persistent Markdown file — all sessions across all datasets append to it. Open it in any editor or view it on GitHub.
+
+Inside the TUI, type `/history` to see your last 5 queries and the file path.
+
+---
+
 ## Beta
 
 QueryMind is in active development. If something breaks or a query gives a wrong answer, please [open an issue](https://github.com/SiddheshCodeMaster/QueryMind/issues) with:
