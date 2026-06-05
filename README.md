@@ -89,6 +89,16 @@ InsightGenerator — formats result + ASCII bar chart
 
 ---
 
+## What's New in v0.2.0
+
+- **`/profile`** — instant dataset profile: row count, column types, null %, unique counts, min/avg/max stats per column. For Excel files shows overall summary + per-sheet breakdown.
+- **`/history`** — shows your last 5 queries inline in the TUI with the path to the full log
+- **Persistent session history** — every query saved to `~/querymind_sessions/querymind_history.md` across all sessions forever
+- **Sort order fix** — `"lowest sales in descending order"` now correctly highlights the minimum while sorting high→low
+- **Integer display fix** — IDs like `customer_id` no longer show as `553.0`
+
+---
+
 ## Session History
 
 Every query and answer is automatically saved to:

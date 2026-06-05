@@ -1,8 +1,8 @@
 Metadata-Version: 2.4
 Name: querymind-cli
-Version: 0.1.2
+Version: 0.2.0
 Summary: CLI AI Data Analyst — query CSV and Excel files in plain English
-Author-email: Siddhesh <sidcode1606@gmail.com>
+Author-email: Siddhesh <siddhesh.codemaster.github@gmail.com>
 License: MIT
 Project-URL: Homepage, https://github.com/SiddheshCodeMaster/QueryMind
 Project-URL: Repository, https://github.com/SiddheshCodeMaster/QueryMind
@@ -120,6 +120,16 @@ Analyzer         — pandas groupby / aggregation
     ↓
 InsightGenerator — formats result + ASCII bar chart
 ```
+
+---
+
+## What's New in v0.2.0
+
+- **`/profile`** — instant dataset profile: row count, column types, null %, unique counts, min/avg/max stats per column. For Excel files shows overall summary + per-sheet breakdown.
+- **`/history`** — shows your last 5 queries inline in the TUI with the path to the full log
+- **Persistent session history** — every query saved to `~/querymind_sessions/querymind_history.md` across all sessions forever
+- **Sort order fix** — `"lowest sales in descending order"` now correctly highlights the minimum while sorting high→low
+- **Integer display fix** — IDs like `customer_id` no longer show as `553.0`
 
 ---
 

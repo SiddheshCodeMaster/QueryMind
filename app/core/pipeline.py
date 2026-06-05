@@ -52,9 +52,9 @@ class QueryMindPipeline:
         # Check Ollama availability at startup
         self.llm_available = self._check_ollama()
 
-        # Session logger — records all queries + answers to Markdown
-        # connector.file_path holds the original path for both CSV and Excel
+        # Store file path for profiler and session logger
         _file_path = getattr(connector, "file_path", "")
+        self._file_path = _file_path
         self.logger = SessionLogger(
             file_path=_file_path,
             semantic_map=semantic_map,

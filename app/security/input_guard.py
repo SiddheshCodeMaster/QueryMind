@@ -88,6 +88,10 @@ ANALYTICAL_KEYWORDS = {
 }
 
 
+# Slash commands handled entirely by the TUI — never reach InputGuard
+TUI_COMMANDS = {"/history", "/h", "/profile", "/p", "history", "profile"}
+
+
 class InputGuard:
     def __init__(self, extra_domain_words=None):
         """
@@ -103,6 +107,10 @@ class InputGuard:
         # --- Empty ---
         if not query:
             context["error"] = "Please enter a question."
+            return context
+
+        # --- TUI slash commands (should never reach here, but safety net) ---
+        if query.strip().lower() in TUI_COMMANDS:
             return context
 
         query_lower = query.lower()

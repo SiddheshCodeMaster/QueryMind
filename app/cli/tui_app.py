@@ -48,8 +48,7 @@ class QueryMindApp(App):
         yield self.chat
 
         self.input = Input(
-            placeholder="Ask a question — or type /history to review queries",
-            id="input",
+            placeholder="Ask a question  ·  /profile  ·  /history", id="input"
         )
         yield self.input
 
@@ -85,6 +84,30 @@ class QueryMindApp(App):
         )
 
     # ------------------------------------------------------------------ #
+
+    def _show_profile(self):
+        """Run DataProfiler and display output in the TUI chat."""
+        try:
+            from app.tools.data_profiler import DataProfiler
+
+            profiler = DataProfiler()
+
+            # Build context the profiler needs
+            ctx = dict(self.pipeline._base_context)
+            ctx["file_path"] = getattr(
+                self.pipeline,
+                "_file_path",
+                getattr(self.pipeline.logger, "file_path", "dataset"),
+            )
+
+            profile_text = profiler.run(ctx)
+            self.chat_history += f"\n{profile_text}\n"
+
+            self.chat.update(self.chat_history)
+        except Exception as e:
+            self.chat_history += f"\n❌ Profile failed: {e}\n"
+
+            self.chat.update(self.chat_history)
 
     def _show_history(self):
         """Show last 5 queries from this session + path to full history file."""
@@ -141,14 +164,26 @@ class QueryMindApp(App):
         if not query:
             return
 
-        if query.lower() in ("exit", "quit", "bye", "/exit", "/quit", "/bye", "/c"):
+        q_lower = query.lower().strip()
+        print(f"DEBUG input: repr={repr(query)} q_lower={repr(q_lower)}")
+
+        if q_lower in ("exit", "quit", "/q", "/quit", "/exit", "/bye", "bye"):
             self._close_session()
             self.exit()
             return
 
-        # /history command — show recent queries + file path
-        if query.lower() in ("/history", "/h"):
+        # Slash commands — handled entirely in TUI, never reach pipeline
+        if q_lower in ("/history", "/h", "history"):
+            self.chat_history += f"\n>> {query}"
+            self.chat.update(self.chat_history)
             self._show_history()
+            self.input.value = ""
+            return
+
+        if q_lower in ("/profile", "/p", "profile"):
+            self.chat_history += f"\n>> {query}"
+            self.chat.update(self.chat_history)
+            self._show_profile()
             self.input.value = ""
             return
 
