@@ -349,9 +349,12 @@ class QueryMindPipeline:
             context["llm_used"] = True
 
         # STEP 3.5a – Guard: user asked about a column that doesn't exist
-        context = self._check_missing_column(context)
-        if context.get("error"):
-            return context
+        # Skip for count queries — the subject noun (e.g. "airports") is
+        # what's being counted, not a column reference.
+        if context.get("intent", {}).get("query_type") != "count":
+            context = self._check_missing_column(context)
+            if context.get("error"):
+                return context
 
         # STEP 3.5b – Guard: trend query but no time column configured
         if context.get("intent", {}).get("no_time_column"):

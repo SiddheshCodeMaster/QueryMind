@@ -167,12 +167,15 @@ class QueryMindApp(App):
         q_lower = query.lower().strip()
         print(f"DEBUG input: repr={repr(query)} q_lower={repr(q_lower)}")
 
-        if q_lower in ("exit", "quit", "/q", "/quit", "/exit", "/bye", "bye"):
+        # Exit commands — handled entirely in TUI, never reach pipeline:
+
+        if q_lower in ("exit", "quit", "/q", "/quit", ":q", "/exit", "/bye", "bye"):
             self._close_session()
             self.exit()
             return
 
-        # Slash commands — handled entirely in TUI, never reach pipeline
+        # Slash commands — handled entirely in TUI, never reach pipeline:
+
         if q_lower in ("/history", "/h", "history"):
             self.chat_history += f"\n>> {query}"
             self.chat.update(self.chat_history)
@@ -198,6 +201,7 @@ class QueryMindApp(App):
             response = result.get("answer", "No answer generated.")
 
         # Show which sheet the answer came from (useful in multi-sheet mode)
+
         active = result.get("active_sheet", "")
         if active and "+" in active:
             response = f"[{active}]\n{response}"

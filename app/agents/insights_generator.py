@@ -29,9 +29,55 @@ class InsightGenerator:
                 return context
 
             # --- Human-readable labels ---
-            metric_label = metric.replace("_", " ").title()
+            count_mode = context.get("count_mode", False)
+            metric_label = (
+                "Count" if count_mode else (metric or "value").replace("_", " ").title()
+            )
             dimension_label = dimension.replace("_", " ").title()
-            op_label = "Average" if operation == "mean" else "Total"
+            op_label = (
+                "Count"
+                if count_mode
+                else ("Average" if operation == "mean" else "Total")
+            )
+
+            # --- Currency detection ---
+            # Only use $ formatting if metric name suggests monetary value.
+            # Otherwise use plain number formatting.
+            CURRENCY_HINTS = {
+                "sales",
+                "revenue",
+                "profit",
+                "cost",
+                "price",
+                "spend",
+                "spending",
+                "spent",
+                "amount",
+                "earnings",
+                "income",
+                "fee",
+                "charge",
+                "payment",
+                "salary",
+                "wage",
+                "budget",
+            }
+            is_currency = (
+                not count_mode
+                and metric
+                and any(h in (metric or "").lower() for h in CURRENCY_HINTS)
+            )
+
+            def fmt(val):
+                """Format a value with or without $ based on metric type."""
+                if count_mode:
+                    return f"{int(val):,}"
+                if is_currency:
+                    return f"${val:,.2f}"
+                # Check if whole number
+                if val == int(val):
+                    return f"{int(val):,}"
+                return f"{val:,.2f}"
 
             total = result.sum()
             abs_max = result.abs().max() or 1
@@ -62,7 +108,7 @@ class InsightGenerator:
             for cat, val in display_result.head(8).items():
                 bar_len = int((abs(val) / abs_max) * 20)
                 bar = "█" * bar_len
-                table_rows.append(f"  {str(cat):<25} {bar:<20} {val:>12,.2f}")
+                table_rows.append(f"  {str(cat):<25} {bar:<20} {fmt(val):>12}")
             table = "\n".join(table_rows)
 
             # --- Direction-aware language ---
@@ -88,8 +134,14 @@ class InsightGenerator:
                     f"{'─' * 60}\n"
                     f"{table}\n\n"
                     f"💡 Insight\n"
-                    f"  {featured_category} {verb} {op_label.lower()} {metric_label} "
-                    f"of ${featured_value:,.2f} ({pct:.1f}% of total ${total:,.2f})."
+                    f"  {featured_category} {verb} "
+                    + (
+                        f"{int(featured_value):,} {dimension_label.lower()}s "
+                        f"({pct:.1f}% of {int(total):,} total)."
+                        if count_mode
+                        else f"{op_label.lower()} {metric_label} "
+                        f"of {fmt(featured_value)} ({pct:.1f}% of total {fmt(total)})."
+                    )
                 )
 
             elif query_type == "aggregation":
@@ -99,8 +151,12 @@ class InsightGenerator:
                     f"{'─' * 60}\n"
                     f"{table}\n\n"
                     f"💡 Insight\n"
-                    f"  {featured_category} has the {rank_word} {op_label.lower()} "
-                    f"{metric_label} at ${featured_value:,.2f}."
+                    f"  {featured_category} has the {rank_word} "
+                    + (
+                        f"count: {int(featured_value):,}."
+                        if count_mode
+                        else f"{op_label.lower()} {metric_label} at {fmt(featured_value)}."
+                    )
                 )
 
             elif query_type == "trend":
@@ -129,13 +185,16 @@ class InsightGenerator:
                     f"{table}\n\n"
                     f"💡 Insight\n"
                     f"  {superlative} {gran_label.lower()}: {featured_per} "
-                    f"(${featured_val:,.2f}).  "
-                    f"Latest: {last_category} (${last_value:,.2f})."
+                    f"({fmt(featured_val)}).  "
+                    f"Latest: {last_category} ({fmt(last_value)})."
                 )
 
             else:
-                answer = f"📊 Results\n{'─' * 60}\n{table}"
-
+                if count_mode:
+                    heading = f"📊 Count of {dimension_label}s"
+                else:
+                    heading = "📊 Results"
+                answer = f"{heading}\n{'─' * 60}\n{table}"
             context["answer"] = answer
             return context
 

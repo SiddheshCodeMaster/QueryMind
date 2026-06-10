@@ -141,6 +141,17 @@ class Analyzer:
                 # Always sort by value so display and insight are consistent
                 result = result.sort_values(ascending=ascending)
 
+            elif query_type == "count":
+                # Count rows per group — works on any column, no numeric metric needed
+                result = (
+                    df.groupby(dimension)
+                    .size()
+                    .sort_values(ascending=ascending)
+                    .rename("count")
+                    .astype(int)  # ensure int not float
+                )
+                context["count_mode"] = True
+
             elif query_type == "trend":
                 result = df.groupby(dimension)[metric].sum().sort_index()
 

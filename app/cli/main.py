@@ -1,5 +1,4 @@
 import os
-import sys
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
@@ -10,15 +9,17 @@ from app.core.pipeline import QueryMindPipeline
 from app.cli.tui_app import QueryMindApp
 from app.data.connectors.csv_connector import CSVConnector
 from app.data.connectors.excel_connector import ExcelConnector
+from app.data.connectors.json_connector import JSONConnector
 from app.executor.sheet_selector import prompt_sheet_selection
 
 console = Console()
 
 EXCEL_EXTS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
 CSV_EXTS = {".csv", ".tsv"}
+JSON_EXTS = {".json", ".jsonl"}
 
 # Words that mean "I want to quit" at any prompt
-EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q", "bye", "/bye"}
+EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q"}
 
 
 # ─────────────────────────────────────────────
@@ -222,10 +223,21 @@ def load_file(file_path: str) -> tuple:
             )
         return connector, preview_df
 
+    elif ext in JSON_EXTS:
+        connector = JSONConnector(file_path)
+        # Run connector to get preview df for column detection
+        _ctx = connector.run({})
+        if _ctx.get("error"):
+            raise RuntimeError(_ctx["error"])
+        preview_df = _ctx["dataframe"].head(100).copy()
+        if preview_df.empty:
+            raise RuntimeError("JSON file produced an empty table.")
+        return connector, preview_df
+
     else:
         raise RuntimeError(
             f"Unsupported file type: '{ext}'. "
-            f"Supported: {sorted(EXCEL_EXTS | CSV_EXTS)}"
+            f"Supported: {sorted(EXCEL_EXTS | CSV_EXTS | JSON_EXTS)}"
         )
 
 
@@ -249,7 +261,7 @@ def main():
         # ── File input ────────────────────────────────────────────────────
         while True:
             file_path = ask(
-                "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls)[/dim]"
+                "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls, .json, .jsonl)[/dim]"
             )
             try:
                 connector, preview_df = load_file(file_path)
@@ -289,6 +301,11 @@ def main():
 
         if default_metric:
             console.print(f"[dim]  Suggested metric    → {default_metric}[/dim]")
+        else:
+            console.print(
+                f"[yellow]  ℹ️  No numeric columns detected. "
+                f"Count queries (e.g. 'how many X per Y') will still work.[/yellow]"
+            )
         if default_dimension:
             console.print(f"[dim]  Suggested dimension → {default_dimension}[/dim]")
         if default_time:
@@ -296,8 +313,15 @@ def main():
         console.print()
 
         metric = prompt_column(
-            "👉 Which column is the main VALUE to measure? (metric)", columns_all
+            "👉 Which column is the main VALUE to measure? (metric, or press Enter to skip if using count queries)",
+            columns_all,
+            optional=not bool(numeric_cols),  # optional when no numeric cols
         )
+        if metric is None:
+            metric = columns_all[0]  # use first column as placeholder
+            console.print(
+                f"[dim]  No metric set — defaulting to '{metric}' (count queries will work fine)[/dim]"
+            )
         dimension = prompt_column(
             "👉 Which column to GROUP BY by default? (dimension)", columns_all
         )

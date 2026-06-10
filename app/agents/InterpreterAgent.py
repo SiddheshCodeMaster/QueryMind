@@ -14,6 +14,67 @@ class InterpreterAgent:
     - 0.2  → no recognisable keyword; defer to LLM
     """
 
+    METRIC_SYNONYMS = {
+        "sales",
+        "revenue",
+        "profit",
+        "spend",
+        "spending",
+        "spent",
+        "cost",
+        "costs",
+        "amount",
+        "amounts",
+        "value",
+        "values",
+        "earning",
+        "earnings",
+        "income",
+        "price",
+        "prices",
+    }
+
+    @staticmethod
+    def _should_count(query: str, columns: list) -> bool:
+        """
+        Returns True if "most/least/highest/lowest" in the query refers to
+        counting entities (patients, airports) rather than summing a metric.
+
+        Logic: if the word after most/least is not a known column or metric
+        synonym → user is counting rows, not summing a value.
+        """
+        q = query.lower()
+        col_set = set(columns)
+        METRIC_SYNONYMS = {
+            "sales",
+            "revenue",
+            "profit",
+            "spend",
+            "spending",
+            "spent",
+            "cost",
+            "costs",
+            "amount",
+            "amounts",
+            "value",
+            "values",
+            "earning",
+            "earnings",
+            "income",
+            "price",
+            "prices",
+        }
+        m = re.search(r"\b(?:most|least|highest|lowest)\s+(\w+)", q)
+        if m:
+            word_after = m.group(1)
+            if word_after in col_set or word_after in METRIC_SYNONYMS:
+                return False
+            return True
+        # "most/least" at end of query → count
+        if re.search(r"\b(?:most|least)\s*[?]?$", q.strip()):
+            return True
+        return False
+
     STRONG_KEYWORDS = {
         "highest",
         "lowest",
@@ -61,6 +122,14 @@ class InterpreterAgent:
         "decreasing",
         "sorted",
         "order",
+        # Count / frequency
+        "count",
+        "how many",
+        "number of",
+        "frequency",
+        "occurrences",
+        "tally",
+        "total number",
     }
 
     # Order matters: first match wins.
@@ -89,6 +158,12 @@ class InterpreterAgent:
         ("yearly", "trend", "sum"),
         ("which", "comparison", "sum"),
         ("when", "trend", "sum"),
+        # Count query type
+        ("how many", "count", "count"),
+        ("number of", "count", "count"),
+        ("count", "count", "count"),
+        ("frequency", "count", "count"),
+        ("tally", "count", "count"),
     ]
 
     # Natural-language synonyms that mean "use the configured metric".
@@ -114,19 +189,11 @@ class InterpreterAgent:
         "prices",
     }
 
-    # Natural-language synonyms that map to known dimension keywords.
-    DIMENSION_KEYWORDS = {
-        "location": "location",
-        "city": "location",
-        "region": "location",
-        "payment": "payment_method",
-        "payment method": "payment_method",
-        "item": "item",
-        "items": "item",
-        "product": "item",
-        "products": "item",
-        "category": "item",
-    }
+    # Domain-specific dimension keyword map — intentionally minimal.
+    # We rely on column-name matching instead of hardcoded domain words
+    # so QueryMind works on ANY dataset (airports, healthcare, sports etc.)
+    # Only add here if a word reliably maps to a column name across ALL domains.
+    DIMENSION_KEYWORDS = {}
 
     # Time-related words that should route dimension → time column
     TIME_WORDS = {
@@ -263,6 +330,48 @@ class InterpreterAgent:
         if matched_type:
             intent["query_type"] = matched_type
             intent["operation"] = matched_op
+
+        # ── Count override: "most/least/which <non-column noun>" → count ─────
+        # e.g. "most patients by blood_type" → COUNT not SUM
+        # Detect: comparison query where subject word is not a column name
+        if intent["query_type"] in ("comparison", "top_n"):
+            count_triggers = {"most", "least", "which", "how", "many", "number"}
+            words = query.split()
+            for i, w in enumerate(words):
+                if w in count_triggers and i + 1 < len(words):
+                    next_word = words[i + 1].strip("?.,")
+                    # If next word is not a column and not a stop word → count
+                    col_parts = {p for c in columns for p in c.split("_")}
+                    stops = {
+                        "in",
+                        "by",
+                        "per",
+                        "of",
+                        "the",
+                        "a",
+                        "an",
+                        "is",
+                        "are",
+                        "was",
+                        "were",
+                        "has",
+                        "have",
+                        "from",
+                        "for",
+                        "with",
+                        "and",
+                        "or",
+                    }
+                    if (
+                        next_word not in col_parts
+                        and next_word not in stops
+                        and next_word not in columns
+                        and next_word not in {c.replace("_", "") for c in columns}
+                        and len(next_word) > 2
+                    ):
+                        intent["query_type"] = "count"
+                        intent["operation"] = "count"
+                        break
 
         # ── top-N: extract explicit number ───────────────────────────────
         if intent["query_type"] == "top_n":
