@@ -80,9 +80,28 @@ def smart_cast_df(df: pd.DataFrame) -> pd.DataFrame:
        then whole-number float → Int64 downcast
     3. Object/string → try numeric cast (>70% parseable),
        then packed-date check, then whole-number downcast
+
+    Safety: if the DataFrame has duplicate column names (e.g. "Region"
+    and "region" both normalize to "region"), df[col] returns a
+    DataFrame instead of a Series, which has no .dtype attribute and
+    crashes every operation below. We deduplicate FIRST, keeping the
+    first occurrence, so this function never sees duplicate columns.
     """
+    if df.columns.duplicated().any():
+        dupes = df.columns[df.columns.duplicated()].unique().tolist()
+        print(
+            f"⚠️  Duplicate columns detected in smart_cast_df: {dupes} — keeping first occurrence"
+        )
+        df = df.loc[:, ~df.columns.duplicated()].copy()
+
     for col in df.columns:
-        dtype_str = str(df[col].dtype)
+        col_data = df[col]
+        # Extra safety net: even after dedup above, guard against any
+        # remaining DataFrame-instead-of-Series case before calling .dtype
+        if isinstance(col_data, pd.DataFrame):
+            col_data = col_data.iloc[:, 0]
+            df[col] = col_data
+        dtype_str = str(col_data.dtype)
 
         # Already datetime — nothing to do
         if "datetime" in dtype_str:
