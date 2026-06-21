@@ -1,5 +1,15 @@
 import os
+import sys
 import pandas as pd
+
+# Force UTF-8 output on Windows terminals — without this, emoji like 💡 📊
+# render as garbled characters (ð¡, ð) on the default Windows codepage.
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt

@@ -15,3 +15,6 @@
 
 # Ignore Bug Reports file:
 app/tests/QueryMind-Bugs.xlsx
+
+# Ignore the querymind-test-suite folder:
+app/tests/querymind_test_suite

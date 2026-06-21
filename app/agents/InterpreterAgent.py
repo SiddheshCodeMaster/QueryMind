@@ -257,33 +257,52 @@ class InterpreterAgent:
         # ── Metric resolution ────────────────────────────────────────────
         # (INTERNAL_COLS defined above at validation step)
 
-        # 1. If an exact column name appears in the query → use it as metric
+        # Build a lookup of actual column dtypes from the schema so we can
+        # check "is this column numeric?" using REAL data, not hardcoded
+        # domain words like "sales"/"revenue" (which broke on sports/health data).
+        col_types = {c["name"]: c.get("type", "") for c in schema}
+        NUMERIC_DTYPES = ("int", "float", "Int", "Float")
+
+        def _is_numeric_col(col_name: str) -> bool:
+            dtype = col_types.get(col_name, "")
+            return any(dtype.startswith(p) for p in NUMERIC_DTYPES)
+
+        id_hints = {"id", "_id", "row_id", "index", "key", "code"}
+
+        def _is_id_col(col_name: str) -> bool:
+            return any(h in col_name.lower() for h in id_hints)
+
+        # 1. If an exact column name appears in the query → use it as metric,
+        #    as long as the column is actually numeric AND not an ID column.
+        #    This works for ANY domain (sales, sports, healthcare) because it
+        #    checks real dtype, not a hardcoded word list.
         metric_found = False
+        matched_cols = []  # collect all column matches for tie-breaking
+        query_words = set(query.split())
         for col in columns:
             if col in INTERNAL_COLS:
                 continue
             readable = col.replace("_", " ").strip()
             if not readable:
                 continue
-            if col in query or readable in query:
-                # Heuristic: if this column is numeric-ish name, treat as metric
-                numeric_hints = {
-                    "amount",
-                    "price",
-                    "spent",
-                    "revenue",
-                    "sales",
-                    "cost",
-                    "total",
-                    "sum",
-                    "qty",
-                    "quantity",
-                    "profit",
-                }
-                if any(h in col for h in numeric_hints):
-                    intent["metric"] = col
-                    metric_found = True
-                    break
+            # Full match: exact column name or full readable form in query
+            full_match = col in query or readable in query
+            # Partial match: any individual word of the column name appears
+            # as a standalone word in the query (e.g. "goals" matches "goals_scored")
+            col_words = set(readable.split())
+            partial_match = bool(col_words & query_words) and len(col_words) > 0
+            # Only count partial matches for multi-word columns, to avoid
+            # single short words like "id" matching everything
+            if full_match or (partial_match and len(col) > 4):
+                matched_cols.append(col)
+
+        # Prefer the longest match (most specific) among numeric, non-ID columns
+        numeric_matches = [
+            c for c in matched_cols if _is_numeric_col(c) and not _is_id_col(c)
+        ]
+        if numeric_matches:
+            intent["metric"] = max(numeric_matches, key=len)
+            metric_found = True
 
         # 2. If a metric synonym appears, keep the configured default metric
         #    (don't override — the synonym just confirms "use the metric column")

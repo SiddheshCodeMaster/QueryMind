@@ -21,6 +21,7 @@ app/data/schema_engine.py
 app/data/type_caster.py
 app/data/connectors/csv_connector.py
 app/data/connectors/excel_connector.py
+app/data/connectors/json_connector.py
 app/data/connectors/no_sql_db_connector.py
 app/data/connectors/sql_db_connector.py
 app/executor/__init__.py
@@ -33,6 +34,7 @@ app/security/input_guard.py
 app/security/schema_filter.py
 app/tests/__init__.py
 app/tests/llm_test.py
+app/tests/querymind_test_suite/TEST_CASES.md
 app/tools/__init__.py
 app/tools/analyzer.py
 app/tools/data_profiler.py
