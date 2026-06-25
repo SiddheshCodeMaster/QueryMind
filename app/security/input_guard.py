@@ -89,7 +89,17 @@ ANALYTICAL_KEYWORDS = {
 
 
 # Slash commands handled entirely by the TUI — never reach InputGuard
-TUI_COMMANDS = {"/history", "/h", "/profile", "/p", "history", "profile"}
+TUI_COMMANDS = {
+    "/history",
+    "/h",
+    "/profile",
+    "/p",
+    "/export",
+    "/e",
+    "history",
+    "profile",
+    "export",
+}
 
 
 class InputGuard:

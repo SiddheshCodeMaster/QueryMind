@@ -55,6 +55,11 @@ class QueryMindPipeline:
         # Store file path for profiler and session logger
         _file_path = getattr(connector, "file_path", "")
         self._file_path = _file_path
+
+        # Last query result — used by /export
+        self.last_result = None
+        self.last_query = None
+        self.last_intent = {}
         self.logger = SessionLogger(
             file_path=_file_path,
             semantic_map=semantic_map,
@@ -379,6 +384,12 @@ class QueryMindPipeline:
 
         # STEP 5 – Generate insight
         context = self.insight_generator.run(context)
+
+        # Store last successful result for /export — keep the raw
+        # pandas object (Series or DataFrame), not the formatted text
+        self.last_result = context.get("analysis")
+        self.last_query = context.get("user_query", "")
+        self.last_intent = context.get("intent", {})
 
         if not context.get("answer"):
             raw = context.get("analysis")

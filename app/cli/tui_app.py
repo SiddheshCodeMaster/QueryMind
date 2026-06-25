@@ -48,7 +48,8 @@ class QueryMindApp(App):
         yield self.chat
 
         self.input = Input(
-            placeholder="Ask a question  ·  /profile  ·  /history", id="input"
+            placeholder="Ask a question  ·  /profile  ·  /history  ·  /export",
+            id="input",
         )
         yield self.input
 
@@ -84,6 +85,95 @@ class QueryMindApp(App):
         )
 
     # ------------------------------------------------------------------ #
+
+    def _export_last_result(self, custom_name: str = None):
+        """
+        Save the last query result to CSV or Excel.
+
+        custom_name: optional filename from "/export myfile.csv" or
+                     "/export myfile.xlsx". Extension determines format.
+                     Falls back to a timestamped .csv if not given.
+        """
+        try:
+            from pathlib import Path
+            from datetime import datetime
+            import pandas as pd
+            import re
+
+            result = getattr(self.pipeline, "last_result", None)
+
+            if result is None:
+                self.chat_history += (
+                    f"\n📤 Nothing to export yet — run a query first.\n"
+                )
+                self.chat.update(self.chat_history)
+                return
+
+            # Normalise to a DataFrame
+            if isinstance(result, pd.Series):
+                export_df = result.reset_index()
+                export_df.columns = [
+                    self.pipeline.last_intent.get("dimension", "category"),
+                    self.pipeline.last_intent.get("metric") or "value",
+                ]
+            elif isinstance(result, pd.DataFrame):
+                export_df = result
+            else:
+                self.chat_history += (
+                    f"\n❌ Could not export — unexpected result type.\n"
+                )
+                self.chat.update(self.chat_history)
+                return
+
+            save_dir = Path.home() / "querymind_sessions"
+            save_dir.mkdir(parents=True, exist_ok=True)
+
+            # ── Resolve filename and format ────────────────────────────────
+            ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+
+            if custom_name:
+                # Sanitise: strip path separators, keep just the filename
+                safe_name = re.sub(r'[\\/:*?"<>|]', "_", custom_name)
+                suffix = Path(safe_name).suffix.lower()
+                if suffix not in (".csv", ".xlsx"):
+                    safe_name += ".csv"
+                    suffix = ".csv"
+                export_path = save_dir / safe_name
+            else:
+                export_path = save_dir / f"export_{ts}.csv"
+                suffix = ".csv"
+
+            query_text = self.pipeline.last_query or "(query not recorded)"
+
+            # ── Write file ──────────────────────────────────────────────────
+            if suffix == ".xlsx":
+                # Embed the query as a header row above the table
+                with pd.ExcelWriter(export_path, engine="openpyxl") as writer:
+                    export_df.to_excel(
+                        writer, index=False, sheet_name="Result", startrow=2
+                    )
+                    ws = writer.sheets["Result"]
+                    ws["A1"] = f"Query: {query_text}"
+                    ws["A2"] = (
+                        f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+            else:
+                # CSV: prepend query as a comment-style first line, then blank line
+                with open(export_path, "w", encoding="utf-8", newline="") as f:
+                    f.write(f"# Query: {query_text}\n")
+                    f.write(
+                        f"# Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    )
+                export_df.to_csv(export_path, mode="a", index=False)
+
+            self.chat_history += (
+                f"\n📤 Exported {len(export_df):,} rows to:\n   {export_path}\n"
+            )
+            self.chat.update(self.chat_history)
+
+        except Exception as e:
+            self.chat_history += f"\n❌ Export failed: {e}\n"
+            self.chat.update(self.chat_history)
 
     def _show_profile(self):
         """Run DataProfiler and display output in the TUI chat."""
@@ -165,17 +255,13 @@ class QueryMindApp(App):
             return
 
         q_lower = query.lower().strip()
-        print(f"DEBUG input: repr={repr(query)} q_lower={repr(q_lower)}")
-
-        # Exit commands — handled entirely in TUI, never reach pipeline:
 
         if q_lower in ("exit", "quit", "/q", "/quit", ":q", "/exit", "/bye", "bye"):
             self._close_session()
             self.exit()
             return
 
-        # Slash commands — handled entirely in TUI, never reach pipeline:
-
+        # Slash commands — handled entirely in TUI, never reach pipeline
         if q_lower in ("/history", "/h", "history"):
             self.chat_history += f"\n>> {query}"
             self.chat.update(self.chat_history)
@@ -190,6 +276,20 @@ class QueryMindApp(App):
             self.input.value = ""
             return
 
+        if q_lower.startswith(("/export", "/e ", "export")) or q_lower in (
+            "/export",
+            "/e",
+            "export",
+        ):
+            self.chat_history += f"\n>> {query}"
+            self.chat.update(self.chat_history)
+            # Parse optional filename: "/export myfile.csv" or "/export myfile.xlsx"
+            parts = query.strip().split(maxsplit=1)
+            custom_name = parts[1].strip() if len(parts) > 1 else None
+            self._export_last_result(custom_name)
+            self.input.value = ""
+            return
+
         self.chat_history += f"\n>> {query}"
 
         context = Context(query)
@@ -201,7 +301,6 @@ class QueryMindApp(App):
             response = result.get("answer", "No answer generated.")
 
         # Show which sheet the answer came from (useful in multi-sheet mode)
-
         active = result.get("active_sheet", "")
         if active and "+" in active:
             response = f"[{active}]\n{response}"
