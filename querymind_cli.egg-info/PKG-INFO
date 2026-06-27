@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: querymind-cli
-Version: 0.2.1
+Version: 0.2.2
 Summary: CLI AI Data Analyst — query CSV and Excel files in plain English
 Author-email: Siddhesh <sidcode1606@gmail.com>
 License: MIT
@@ -122,6 +122,14 @@ InsightGenerator — formats result + ASCII bar chart
 ```
 
 ---
+
+## What's New in v0.2.2
+
+- **`/export`** — save the last query result to CSV or Excel
+  - `/export` → auto-named timestamped CSV
+  - `/export myfile.csv` or `/export myfile.xlsx` → custom name and format
+  - The original query is embedded in the exported file (comment lines in CSV, header cells in Excel)
+- All files saved to `~/querymind_sessions/`
 
 ## What's New in v0.2.0
 

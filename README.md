@@ -89,6 +89,14 @@ InsightGenerator — formats result + ASCII bar chart
 
 ---
 
+## What's New in v0.2.2
+
+- **`/export`** — save the last query result to CSV or Excel
+  - `/export` → auto-named timestamped CSV
+  - `/export myfile.csv` or `/export myfile.xlsx` → custom name and format
+  - The original query is embedded in the exported file (comment lines in CSV, header cells in Excel)
+- All files saved to `~/querymind_sessions/`
+
 ## What's New in v0.2.0
 
 - **`/profile`** — instant dataset profile: row count, column types, null %, unique counts, min/avg/max stats per column. For Excel files shows overall summary + per-sheet breakdown.
