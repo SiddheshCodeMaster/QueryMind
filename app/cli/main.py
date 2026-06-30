@@ -20,13 +20,15 @@ from app.cli.tui_app import QueryMindApp
 from app.data.connectors.csv_connector import CSVConnector
 from app.data.connectors.excel_connector import ExcelConnector
 from app.data.connectors.json_connector import JSONConnector
-from app.executor.sheet_selector import prompt_sheet_selection
+from app.data.connectors.parquet_connector import ParquetConnector
+from app.cli.sheet_selector import prompt_sheet_selection
 
 console = Console()
 
 EXCEL_EXTS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
 CSV_EXTS = {".csv", ".tsv"}
 JSON_EXTS = {".json", ".jsonl"}
+PARQUET_EXTS = {".parquet", ".pq"}
 
 # Words that mean "I want to quit" at any prompt
 EXIT_WORDS = {"exit", "quit", "/exit", "/quit", "bye", "q", ":q"}
@@ -244,10 +246,20 @@ def load_file(file_path: str) -> tuple:
             raise RuntimeError("JSON file produced an empty table.")
         return connector, preview_df
 
+    elif ext in PARQUET_EXTS:
+        connector = ParquetConnector(file_path)
+        _ctx = connector.run({})
+        if _ctx.get("error"):
+            raise RuntimeError(_ctx["error"])
+        preview_df = _ctx["dataframe"].head(100).copy()
+        if preview_df.empty:
+            raise RuntimeError("Parquet file produced an empty table.")
+        return connector, preview_df
+
     else:
         raise RuntimeError(
             f"Unsupported file type: '{ext}'. "
-            f"Supported: {sorted(EXCEL_EXTS | CSV_EXTS | JSON_EXTS)}"
+            f"Supported: {sorted(EXCEL_EXTS | CSV_EXTS | JSON_EXTS | PARQUET_EXTS)}"
         )
 
 
@@ -271,7 +283,7 @@ def main():
         # ── File input ────────────────────────────────────────────────────
         while True:
             file_path = ask(
-                "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls, .json, .jsonl)[/dim]"
+                "\n[cyan]📁 Enter file path[/cyan] [dim](.csv, .xlsx, .xls, .json, .jsonl, .parquet)[/dim]"
             )
             try:
                 connector, preview_df = load_file(file_path)
