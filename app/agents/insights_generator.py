@@ -195,7 +195,28 @@ class InsightGenerator:
                 else:
                     heading = "📊 Results"
                 answer = f"{heading}\n{'─' * 60}\n{table}"
-            context["answer"] = answer
+            # ── Forecast hint (trend queries only) ───────────────────
+            if query_type == "trend" and not count_mode:
+                try:
+                    from app.tools.forecaster import forecast, _trend_label
+                    import numpy as np
+
+                    fc = forecast(result, n_periods=6)
+                    if fc.get("enough_data") and fc["r2"] >= 0.10:
+                        hint = (
+                            f"\n🔮 Forecast hint\n"
+                            f"  {fc['trend_label'].capitalize()}.\n"
+                            f"  Type /forecast for a 6-period projection "
+                            f"(R²={fc['r2']:.2f})."
+                        )
+                        context["answer"] = answer + hint
+                        context["last_forecast"] = fc
+                    else:
+                        context["answer"] = answer
+                except Exception:
+                    context["answer"] = answer
+            else:
+                context["answer"] = answer
             return context
 
         except Exception as e:

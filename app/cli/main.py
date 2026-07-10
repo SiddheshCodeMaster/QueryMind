@@ -21,7 +21,7 @@ from app.data.connectors.csv_connector import CSVConnector
 from app.data.connectors.excel_connector import ExcelConnector
 from app.data.connectors.json_connector import JSONConnector
 from app.data.connectors.parquet_connector import ParquetConnector
-from app.cli.sheet_selector import prompt_sheet_selection
+from app.executor.sheet_selector import prompt_sheet_selection
 
 console = Console()
 

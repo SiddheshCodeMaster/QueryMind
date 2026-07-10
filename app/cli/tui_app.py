@@ -48,7 +48,7 @@ class QueryMindApp(App):
         yield self.chat
 
         self.input = Input(
-            placeholder="Ask a question  ·  /profile  ·  /history  ·  /export",
+            placeholder="Ask a question  ·  /profile  ·  /history  ·  /export  ·  /forecast",
             id="input",
         )
         yield self.input
@@ -85,6 +85,51 @@ class QueryMindApp(App):
         )
 
     # ------------------------------------------------------------------ #
+
+    def _show_forecast(self):
+        """Run /forecast — show 6-period linear projection of last trend query."""
+        try:
+            from app.tools.forecaster import forecast, format_forecast
+
+            result = getattr(self.pipeline, "last_result", None)
+            intent = getattr(self.pipeline, "last_intent", {})
+
+            if result is None:
+                self.chat_history += (
+                    "\n🔮 Nothing to forecast yet — run a trend query first.\n"
+                    "  e.g. 'sales trend over time monthly'\n"
+                )
+                self.chat.update(self.chat_history)
+                return
+
+            import pandas as pd
+
+            if not isinstance(result, pd.Series):
+                self.chat_history += (
+                    "\n🔮 /forecast only works after a trend query.\n"
+                    "  Try: 'sales trend over time monthly'\n"
+                )
+                self.chat.update(self.chat_history)
+                return
+
+            if intent.get("query_type") != "trend":
+                self.chat_history += (
+                    "\n🔮 Your last query wasn't a trend query.\n"
+                    "  Try: 'sales trend over time monthly', then /forecast\n"
+                )
+                self.chat.update(self.chat_history)
+                return
+
+            metric_label = (intent.get("metric") or "value").replace("_", " ").title()
+            fc = forecast(result, n_periods=6)
+            output = format_forecast(fc, metric_label)
+
+            self.chat_history += f"\n{output}\n"
+            self.chat.update(self.chat_history)
+
+        except Exception as e:
+            self.chat_history += f"\n❌ Forecast failed: {e}\n"
+            self.chat.update(self.chat_history)
 
     def _export_last_result(self, custom_name: str = None):
         """
@@ -276,6 +321,15 @@ class QueryMindApp(App):
             self.input.value = ""
             return
 
+        if q_lower in ("/forecast", "/fc", "forecast") or q_lower.startswith(
+            ("/forecast", "/fc ")
+        ):
+            self.chat_history += f"\n>> {query}"
+            self.chat.update(self.chat_history)
+            self._show_forecast()
+            self.input.value = ""
+            return
+
         if q_lower.startswith(("/export", "/e ", "export")) or q_lower in (
             "/export",
             "/e",
@@ -306,5 +360,4 @@ class QueryMindApp(App):
             response = f"[{active}]\n{response}"
 
         self.chat_history += f"\n💡 {response}\n"
-        self.chat.update(self.chat_history)
         self.input.value = ""

@@ -60,6 +60,8 @@ class QueryMindPipeline:
         self.last_result = None
         self.last_query = None
         self.last_intent = {}
+        self.last_forecast = None
+        self.last_forecast = None
         self.logger = SessionLogger(
             file_path=_file_path,
             semantic_map=semantic_map,
@@ -385,11 +387,14 @@ class QueryMindPipeline:
         # STEP 5 – Generate insight
         context = self.insight_generator.run(context)
 
-        # Store last successful result for /export — keep the raw
-        # pandas object (Series or DataFrame), not the formatted text
+        # Store last successful result for /export and /forecast
         self.last_result = context.get("analysis")
         self.last_query = context.get("user_query", "")
         self.last_intent = context.get("intent", {})
+        self.last_forecast = context.get("last_forecast")
+
+        # Auto-forecast hint for trend queries
+        self.last_forecast = None
 
         if not context.get("answer"):
             raw = context.get("analysis")

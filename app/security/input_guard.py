@@ -96,9 +96,12 @@ TUI_COMMANDS = {
     "/p",
     "/export",
     "/e",
+    "/forecast",
+    "/f",
     "history",
     "profile",
     "export",
+    "forecast",
 }
 
 
