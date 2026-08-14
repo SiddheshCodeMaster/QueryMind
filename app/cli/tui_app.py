@@ -361,3 +361,4 @@ class QueryMindApp(App):
 
         self.chat_history += f"\n💡 {response}\n"
         self.input.value = ""
+        self.chat.update(self.chat_history)

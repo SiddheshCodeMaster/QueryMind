@@ -23,6 +23,7 @@ app/data/connectors/csv_connector.py
 app/data/connectors/excel_connector.py
 app/data/connectors/json_connector.py
 app/data/connectors/no_sql_db_connector.py
+app/data/connectors/parquet_connector.py
 app/data/connectors/sql_db_connector.py
 app/executor/__init__.py
 app/executor/db_executor.py
@@ -38,6 +39,7 @@ app/tests/querymind_test_suite/TEST_CASES.md
 app/tools/__init__.py
 app/tools/analyzer.py
 app/tools/data_profiler.py
+app/tools/forecaster.py
 app/tools/join_resolver.py
 app/tools/session_logger.py
 app/tools/sql_writer.py
