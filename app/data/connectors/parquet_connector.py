@@ -19,7 +19,13 @@ from app.data.type_caster import smart_cast_df
 
 
 def _normalize_col(col: str) -> str:
-    return col.lower().strip().replace(" ", "_")
+    import re
+
+    col = col.lower().strip()
+    col = re.sub(r"[^a-z0-9_]", "_", col)  # replace all non-alphanumeric with _
+    col = re.sub(r"_+", "_", col)  # collapse multiple underscores
+    col = col.strip("_")  # strip leading/trailing underscores
+    return col or "col"  # fallback if col becomes empty
 
 
 class ParquetConnector:
